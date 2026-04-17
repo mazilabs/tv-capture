@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react"
-import { MESSAGE_TYPES } from "./lib-messages"
+import { MESSAGE_TYPES, type TestMessageResponse } from "./lib-messages"
 import {
   loadSettings,
   saveSettings,
@@ -158,6 +158,8 @@ function SettingsView({
   const [errors, setErrors] = useState<ValidationError[]>([])
   const [feedback, setFeedback] = useState<"success" | null>(null)
   const [saving, setSaving] = useState(false)
+  const [testLoading, setTestLoading] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
 
   useEffect(() => {
     loadSettings().then(setSettings)
@@ -168,6 +170,12 @@ function SettingsView({
     const timer = setTimeout(() => setFeedback(null), 2000)
     return () => clearTimeout(timer)
   }, [feedback])
+
+  useEffect(() => {
+    if (!testResult) return
+    const timer = setTimeout(() => setTestResult(null), 5000)
+    return () => clearTimeout(timer)
+  }, [testResult])
 
   const updateField = useCallback(
     (path: string, value: string | number) => {
@@ -202,6 +210,25 @@ function SettingsView({
       ])
     } finally {
       setSaving(false)
+    }
+  }, [settings])
+
+  const handleTestMessage = useCallback(async () => {
+    if (!settings) return
+
+    setTestLoading(true)
+    setTestResult(null)
+
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.SEND_TEST_MESSAGE,
+      })) as TestMessageResponse
+
+      setTestResult(response)
+    } catch {
+      setTestResult({ success: false, error: "Failed to send test message" })
+    } finally {
+      setTestLoading(false)
     }
   }, [settings])
 
@@ -258,6 +285,24 @@ function SettingsView({
             <p style={s.errorText}>{fieldError("telegram.chatId").message}</p>
           )}
         </div>
+
+        {/* Test Connection Button */}
+        <div style={s.testButtonRow}>
+          <button
+            style={testLoading ? s.testButtonDisabled : s.testButton}
+            onClick={handleTestMessage}
+            disabled={testLoading}
+          >
+            {testLoading ? "Sending..." : "Test Connection"}
+          </button>
+        </div>
+
+        {/* Test Result Feedback */}
+        {testResult && (
+          <div style={testResult.success ? s.testSuccess : s.testError}>
+            {testResult.success ? "✓ Test message sent!" : `✕ ${testResult.error}`}
+          </div>
+        )}
       </div>
 
       {/* Capture */}
@@ -563,6 +608,55 @@ const s: Record<string, React.CSSProperties> = {
     border: "none",
     fontSize: 14,
     cursor: "pointer",
+  },
+  // Test message styles
+  testButtonRow: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  testButton: {
+    width: "100%",
+    padding: "8px 12px",
+    border: "1px solid #2563eb",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "#fff",
+    color: "#2563eb",
+  },
+  testButtonDisabled: {
+    width: "100%",
+    padding: "8px 12px",
+    border: "1px solid #93c5fd",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "not-allowed",
+    backgroundColor: "#f0f9ff",
+    color: "#93c5fd",
+  },
+  testSuccess: {
+    marginTop: 8,
+    padding: "8px 12px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "center" as const,
+    backgroundColor: "#f0fdf4",
+    color: "#16a34a",
+    border: "1px solid #22c55e",
+  },
+  testError: {
+    marginTop: 8,
+    padding: "8px 12px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "center" as const,
+    backgroundColor: "#fef2f2",
+    color: "#dc2626",
+    border: "1px solid #ef4444",
   },
 }
 

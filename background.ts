@@ -15,8 +15,9 @@
  * opens the side panel and sends a follow-up message to set the active view.
  */
 
-import { MESSAGE_TYPES } from "./lib-messages"
+import { MESSAGE_TYPES, type TestMessageResponse } from "./lib-messages"
 import { loadSettings, isConfigured } from "./lib-storage"
+import { sendMessage } from "./lib-telegram"
 import {
   scheduleUpdateChecks,
   handleUpdateAlarm,
@@ -53,6 +54,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true // async response
   }
 
+  if (type === MESSAGE_TYPES.SEND_TEST_MESSAGE) {
+    handleTestMessage()
+      .then(sendResponse)
+      .catch(() => {
+        sendResponse({ success: false, error: "Unexpected error" })
+      })
+    return true // async response
+  }
+
   return false
 })
 
@@ -75,6 +85,29 @@ async function openSidePanel(windowId: number, view: string) {
       // Side panel may not have loaded yet, that's ok
     })
   }, 200)
+}
+
+// ---------------------------------------------------------------------------
+// Test message handler
+// ---------------------------------------------------------------------------
+
+async function handleTestMessage(): Promise<TestMessageResponse> {
+  const settings = await loadSettings()
+
+  if (!isConfigured(settings)) {
+    return {
+      success: false,
+      error: "Please enter both Bot Token and Chat ID.",
+    }
+  }
+
+  const result = await sendMessage(
+    settings.telegram.botToken.trim(),
+    settings.telegram.chatId.trim(),
+    "✅ TV Capture test message successful!"
+  )
+
+  return result
 }
 
 // ---------------------------------------------------------------------------
