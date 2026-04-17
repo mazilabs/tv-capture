@@ -16,5 +16,8 @@ build/
 dist/
 .plasmo/
 
+# extension signing key - NEVER commit this
+key.pem
+
 # OS/editor noise
 .DS_Store

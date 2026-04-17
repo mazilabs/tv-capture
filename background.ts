@@ -6,6 +6,10 @@
  *  - OPEN_CAPTURE → forward to side panel (switch to capture view)
  *  - GET_STATUS → return whether Telegram credentials are configured
  *
+ * Also handles:
+ *  - Periodic update checks via GitHub API
+ *  - Notification of available updates to UI
+ *
  * Note: The side panel is a single HTML page with internal view switching.
  * When the popup sends OPEN_SETTINGS or OPEN_CAPTURE, the background
  * opens the side panel and sends a follow-up message to set the active view.
@@ -13,6 +17,11 @@
 
 import { MESSAGE_TYPES } from "./lib-messages"
 import { loadSettings, isConfigured } from "./lib-storage"
+import {
+  scheduleUpdateChecks,
+  handleUpdateAlarm,
+  runBackgroundUpdateCheck,
+} from "./lib-update"
 
 // ---------------------------------------------------------------------------
 // Message handling
@@ -74,4 +83,22 @@ async function openSidePanel(windowId: number, view: string) {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log("TV Capture extension installed")
+  runBackgroundUpdateCheck()
+})
+
+// Also check on browser startup
+chrome.runtime.onStartup.addListener(() => {
+  runBackgroundUpdateCheck()
+})
+
+// ---------------------------------------------------------------------------
+// Update checking
+// ---------------------------------------------------------------------------
+
+// Schedule periodic update checks
+scheduleUpdateChecks()
+
+// Handle alarm for update checks
+chrome.alarms.onAlarm.addListener((alarm) => {
+  handleUpdateAlarm(alarm)
 })

@@ -3,15 +3,20 @@
  *
  * Shows extension name, version, configuration status,
  * and two buttons: Settings and Capture.
+ *
+ * Also displays update banner when new version is available.
  */
 
 import { useEffect, useState } from "react"
 import { MESSAGE_TYPES } from "./lib-messages"
+import type { PendingUpdate } from "./lib-update"
 
 function Popup() {
   const [configured, setConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null)
 
+  // Check configuration status
   useEffect(() => {
     chrome.runtime.sendMessage(
       { type: MESSAGE_TYPES.GET_STATUS },
@@ -22,6 +27,15 @@ function Popup() {
         setLoading(false)
       },
     )
+  }, [])
+
+  // Check for pending updates
+  useEffect(() => {
+    chrome.storage.local.get("tv-capture-pending-update", (result) => {
+      if (result["tv-capture-pending-update"]) {
+        setPendingUpdate(result["tv-capture-pending-update"])
+      }
+    })
   }, [])
 
   const handleOpenSettings = async () => {
@@ -66,11 +80,46 @@ function Popup() {
       ? "Configured"
       : "Not Configured"
 
+  const handleUpdate = () => {
+    if (pendingUpdate?.releaseUrl) {
+      chrome.tabs.create({ url: pendingUpdate.releaseUrl })
+    }
+  }
+
+  const handleDismissUpdate = async () => {
+    await chrome.storage.local.remove("tv-capture-pending-update")
+    setPendingUpdate(null)
+  }
+
+  // Get current version from manifest
+  const currentVersion = chrome.runtime.getManifest().version
+
   return (
     <main style={styles.container}>
+      {/* Update Banner - show at top if update available */}
+      {pendingUpdate && (
+        <div style={styles.updateBanner}>
+          <div style={styles.updateBannerContent}>
+            <span style={styles.updateIcon}>⬆️</span>
+            <div>
+              <div style={styles.updateTitle}>Update Available</div>
+              <div style={styles.updateVersion}>v{pendingUpdate.version}</div>
+            </div>
+          </div>
+          <div style={styles.updateActions}>
+            <button style={styles.updateButton} onClick={handleUpdate}>
+              Update Now
+            </button>
+            <button style={styles.dismissButton} onClick={handleDismissUpdate}>
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={styles.header}>
         <h1 style={styles.title}>TV Capture</h1>
-        <span style={styles.version}>v0.1.0</span>
+        <span style={styles.version}>v{currentVersion}</span>
       </div>
 
       <div style={styles.statusRow}>
@@ -158,6 +207,57 @@ const styles: Record<string, React.CSSProperties> = {
   buttonCapture: {
     backgroundColor: "#2563eb",
     color: "#fff",
+  },
+  // Update banner styles
+  updateBanner: {
+    marginBottom: 12,
+    padding: "10px 12px",
+    backgroundColor: "#fef3c7",
+    border: "1px solid #f59e0b",
+    borderRadius: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  updateBannerContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  updateIcon: {
+    fontSize: 16,
+  },
+  updateTitle: {
+    fontWeight: 600,
+    fontSize: 13,
+    color: "#92400e",
+  },
+  updateVersion: {
+    fontSize: 12,
+    color: "#b45309",
+  },
+  updateActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+  },
+  updateButton: {
+    padding: "4px 8px",
+    backgroundColor: "#f59e0b",
+    color: "#fff",
+    border: "none",
+    borderRadius: 4,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  dismissButton: {
+    padding: "4px 6px",
+    backgroundColor: "transparent",
+    color: "#92400e",
+    border: "none",
+    fontSize: 14,
+    cursor: "pointer",
   },
 }
 

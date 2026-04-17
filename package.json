@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
+    "build:crx": "plasmo build && node scripts/pack-crx.js",
     "package": "plasmo package",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -41,7 +42,9 @@
     ],
     "permissions": [
       "sidePanel",
-      "storage"
-    ]
+      "storage",
+      "alarms"
+    ],
+    "update_url": "https://mazilabs.github.io/tv-capture/updates/update.xml"
   }
 }

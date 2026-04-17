@@ -7,6 +7,8 @@
  *
  * View switching is triggered by messages from the background service worker
  * (which receives OPEN_SETTINGS / OPEN_CAPTURE from the popup).
+ *
+ * Also displays update banner when new version is available.
  */
 
 import { useEffect, useState, useCallback } from "react"
@@ -18,6 +20,7 @@ import {
   type Settings,
   type ValidationError,
 } from "./lib-storage"
+import type { PendingUpdate } from "./lib-update"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +34,7 @@ type View = "capture" | "settings"
 
 function SidePanel() {
   const [view, setView] = useState<View>("capture")
+  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null)
 
   // Listen for view-switch messages from background
   useEffect(() => {
@@ -43,10 +47,51 @@ function SidePanel() {
     return () => chrome.runtime.onMessage.removeListener(listener)
   }, [])
 
+  // Check for pending updates
+  useEffect(() => {
+    chrome.storage.local.get("tv-capture-pending-update", (result) => {
+      if (result["tv-capture-pending-update"]) {
+        setPendingUpdate(result["tv-capture-pending-update"])
+      }
+    })
+  }, [])
+
+  const handleUpdate = () => {
+    if (pendingUpdate?.releaseUrl) {
+      chrome.tabs.create({ url: pendingUpdate.releaseUrl })
+    }
+  }
+
+  const handleDismissUpdate = async () => {
+    await chrome.storage.local.remove("tv-capture-pending-update")
+    setPendingUpdate(null)
+  }
+
+  // Update banner component (shared between views)
+  const updateBanner = pendingUpdate && (
+    <div style={s.updateBanner}>
+      <div style={s.updateBannerContent}>
+        <span style={s.updateIcon}>⬆️</span>
+        <div>
+          <span style={s.updateTitle}>Update Available: </span>
+          <span style={s.updateVersion}>v{pendingUpdate.version}</span>
+        </div>
+      </div>
+      <div style={s.updateActions}>
+        <button style={s.updateButton} onClick={handleUpdate}>
+          Update Now
+        </button>
+        <button style={s.dismissButton} onClick={handleDismissUpdate}>
+          ✕
+        </button>
+      </div>
+    </div>
+  )
+
   return view === "settings" ? (
-    <SettingsView onBack={() => setView("capture")} />
+    <SettingsView onBack={() => setView("capture")} updateBanner={updateBanner} />
   ) : (
-    <CaptureView onSettings={() => setView("settings")} />
+    <CaptureView onSettings={() => setView("settings")} updateBanner={updateBanner} />
   )
 }
 
@@ -54,9 +99,17 @@ function SidePanel() {
 // Capture View (placeholder)
 // ---------------------------------------------------------------------------
 
-function CaptureView({ onSettings }: { onSettings: () => void }) {
+function CaptureView({
+  onSettings,
+  updateBanner,
+}: {
+  onSettings: () => void
+  updateBanner: React.ReactNode
+}) {
   return (
     <main style={s.container}>
+      {updateBanner}
+
       <div style={s.header}>
         <h1 style={s.title}>📸 TV Capture</h1>
         <button style={s.navButton} onClick={onSettings}>
@@ -94,7 +147,13 @@ function CaptureView({ onSettings }: { onSettings: () => void }) {
 // Settings View
 // ---------------------------------------------------------------------------
 
-function SettingsView({ onBack }: { onBack: () => void }) {
+function SettingsView({
+  onBack,
+  updateBanner,
+}: {
+  onBack: () => void
+  updateBanner: React.ReactNode
+}) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [errors, setErrors] = useState<ValidationError[]>([])
   const [feedback, setFeedback] = useState<"success" | null>(null)
@@ -158,6 +217,8 @@ function SettingsView({ onBack }: { onBack: () => void }) {
 
   return (
     <main style={s.container}>
+      {updateBanner}
+
       {/* Header */}
       <div style={s.header}>
         <h1 style={s.title}>⚙ Settings</h1>
@@ -451,6 +512,57 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "#9ca3af",
     textAlign: "center" as const,
+  },
+  // Update banner styles
+  updateBanner: {
+    marginBottom: 12,
+    padding: "10px 12px",
+    backgroundColor: "#fef3c7",
+    border: "1px solid #f59e0b",
+    borderRadius: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  updateBannerContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  updateIcon: {
+    fontSize: 16,
+  },
+  updateTitle: {
+    fontWeight: 600,
+    fontSize: 13,
+    color: "#92400e",
+  },
+  updateVersion: {
+    fontSize: 13,
+    color: "#b45309",
+  },
+  updateActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+  },
+  updateButton: {
+    padding: "4px 8px",
+    backgroundColor: "#f59e0b",
+    color: "#fff",
+    border: "none",
+    borderRadius: 4,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  dismissButton: {
+    padding: "4px 6px",
+    backgroundColor: "transparent",
+    color: "#92400e",
+    border: "none",
+    fontSize: 14,
+    cursor: "pointer",
   },
 }
 
