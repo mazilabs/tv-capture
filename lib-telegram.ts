@@ -30,6 +30,14 @@ export type SendMessageResult =
   | { success: true }
   | { success: false; error: string }
 
+/**
+ * Result of sendPhoto() call.
+ * Discriminated union for type-safe error handling.
+ */
+export type SendPhotoResult =
+  | { success: true }
+  | { success: false; error: string }
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -102,6 +110,80 @@ export async function sendMessage(
       error: "Network error. Please check your internet connection.",
     }
   }
+}
+
+/**
+ * Send a photo via Telegram Bot API using multipart/form-data.
+ *
+ * @param botToken - Telegram bot token
+ * @param chatId - Target chat ID
+ * @param dataUrl - Image data URL (data:image/jpeg;base64,...)
+ * @param caption - Optional photo caption
+ * @returns SendPhotoResult with success status or error message
+ */
+export async function sendPhoto(
+  botToken: string,
+  chatId: string,
+  dataUrl: string,
+  caption?: string
+): Promise<SendPhotoResult> {
+  // Validate inputs
+  if (!botToken?.trim()) {
+    return { success: false, error: "Bot token is empty." }
+  }
+  if (!chatId?.trim()) {
+    return { success: false, error: "Chat ID is empty." }
+  }
+  if (!dataUrl?.startsWith("data:image/")) {
+    return { success: false, error: "Invalid image data." }
+  }
+
+  const url = `${TELEGRAM_API_BASE}/bot${encodeURIComponent(botToken.trim())}/sendPhoto`
+
+  try {
+    // Convert data URL to Blob
+    const blob = await dataUrlToBlob(dataUrl)
+    
+    // Build FormData
+    const formData = new FormData()
+    formData.append("chat_id", chatId.trim())
+    formData.append("photo", blob, "screenshot.jpg")
+    if (caption) {
+      formData.append("caption", caption)
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+    })
+
+    const data = (await response.json()) as TelegramResponse
+
+    if (data.ok) {
+      return { success: true }
+    }
+
+    const errorCode = data.error_code || 0
+    const description = data.description || "Unknown error"
+
+    return {
+      success: false,
+      error: mapError(errorCode, description),
+    }
+  } catch {
+    return {
+      success: false,
+      error: "Network error. Please check your internet connection.",
+    }
+  }
+}
+
+/**
+ * Convert a data URL to a Blob for multipart upload.
+ */
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl)
+  return response.blob()
 }
 
 // ---------------------------------------------------------------------------

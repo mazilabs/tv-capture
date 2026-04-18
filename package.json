@@ -38,13 +38,21 @@
   },
   "manifest": {
     "host_permissions": [
-      "https://*/*"
+      "<all_urls>"
     ],
     "permissions": [
       "sidePanel",
       "storage",
-      "alarms"
+      "activeTab"
     ],
-    "update_url": "https://mazilabs.github.io/tv-capture/updates/update.xml"
+    "commands": {
+      "capture-tradingview": {
+        "suggested_key": {
+          "default": "Alt+S",
+          "mac": "Alt+S"
+        },
+        "description": "Capture screenshot from TradingView chart"
+      }
+    }
   }
 }

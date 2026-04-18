@@ -7,12 +7,10 @@
  *
  * View switching is triggered by messages from the background service worker
  * (which receives OPEN_SETTINGS / OPEN_CAPTURE from the popup).
- *
- * Also displays update banner when new version is available.
  */
 
 import { useEffect, useState, useCallback } from "react"
-import { MESSAGE_TYPES, type TestMessageResponse } from "./lib-messages"
+import { MESSAGE_TYPES, type TestMessageResponse, type CaptureResponse, type SendScreenshotResponse, type ShortcutCaptureMessage } from "./lib-messages"
 import {
   loadSettings,
   saveSettings,
@@ -20,7 +18,6 @@ import {
   type Settings,
   type ValidationError,
 } from "./lib-storage"
-import type { PendingUpdate } from "./lib-update"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,7 +31,6 @@ type View = "capture" | "settings"
 
 function SidePanel() {
   const [view, setView] = useState<View>("capture")
-  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null)
 
   // Listen for view-switch messages from background
   useEffect(() => {
@@ -47,69 +43,115 @@ function SidePanel() {
     return () => chrome.runtime.onMessage.removeListener(listener)
   }, [])
 
-  // Check for pending updates
-  useEffect(() => {
-    chrome.storage.local.get("tv-capture-pending-update", (result) => {
-      if (result["tv-capture-pending-update"]) {
-        setPendingUpdate(result["tv-capture-pending-update"])
-      }
-    })
-  }, [])
-
-  const handleUpdate = () => {
-    if (pendingUpdate?.releaseUrl) {
-      chrome.tabs.create({ url: pendingUpdate.releaseUrl })
-    }
-  }
-
-  const handleDismissUpdate = async () => {
-    await chrome.storage.local.remove("tv-capture-pending-update")
-    setPendingUpdate(null)
-  }
-
-  // Update banner component (shared between views)
-  const updateBanner = pendingUpdate && (
-    <div style={s.updateBanner}>
-      <div style={s.updateBannerContent}>
-        <span style={s.updateIcon}>⬆️</span>
-        <div>
-          <span style={s.updateTitle}>Update Available: </span>
-          <span style={s.updateVersion}>v{pendingUpdate.version}</span>
-        </div>
-      </div>
-      <div style={s.updateActions}>
-        <button style={s.updateButton} onClick={handleUpdate}>
-          Update Now
-        </button>
-        <button style={s.dismissButton} onClick={handleDismissUpdate}>
-          ✕
-        </button>
-      </div>
-    </div>
-  )
-
   return view === "settings" ? (
-    <SettingsView onBack={() => setView("capture")} updateBanner={updateBanner} />
+    <SettingsView onBack={() => setView("capture")} />
   ) : (
-    <CaptureView onSettings={() => setView("settings")} updateBanner={updateBanner} />
+    <CaptureView onSettings={() => setView("settings")} />
   )
 }
 
 // ---------------------------------------------------------------------------
-// Capture View (placeholder)
+// Capture View
 // ---------------------------------------------------------------------------
+
+type CaptureState = "idle" | "capturing" | "captured" | "sending" | "error"
 
 function CaptureView({
   onSettings,
-  updateBanner,
 }: {
   onSettings: () => void
-  updateBanner: React.ReactNode
 }) {
+  const [captureState, setCaptureState] = useState<CaptureState>("idle")
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sendResult, setSendResult] = useState<{ success: boolean; error?: string } | null>(null)
+
+  // Auto-dismiss send result after 5 seconds
+  useEffect(() => {
+    if (!sendResult) return
+    const timer = setTimeout(() => setSendResult(null), 5000)
+    return () => clearTimeout(timer)
+  }, [sendResult])
+
+  // Listen for shortcut captures from background (Alt+S)
+  useEffect(() => {
+    const listener = (message: { type: string; dataUrl?: string; cropped?: boolean }) => {
+      if (message.type === MESSAGE_TYPES.SHORTCUT_CAPTURE && message.dataUrl) {
+        setScreenshotUrl(message.dataUrl)
+        setCaptureState("captured")
+        setError(null)
+        setSendResult(null)
+      }
+    }
+    chrome.runtime.onMessage.addListener(listener)
+    return () => chrome.runtime.onMessage.removeListener(listener)
+  }, [])
+
+  const handleCapture = useCallback(async () => {
+    setCaptureState("capturing")
+    setError(null)
+    setSendResult(null)
+
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.CAPTURE_SCREENSHOT,
+      })) as CaptureResponse
+
+      if (response.success) {
+        setScreenshotUrl(response.dataUrl)
+        setCaptureState("captured")
+      } else {
+        setError(response.error)
+        setCaptureState("error")
+      }
+    } catch {
+      setError("Failed to capture screenshot")
+      setCaptureState("error")
+    }
+  }, [])
+
+  const handleSend = useCallback(async () => {
+    if (!screenshotUrl) return
+
+    setCaptureState("sending")
+    setSendResult(null)
+
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.SEND_SCREENSHOT,
+        dataUrl: screenshotUrl,
+      })) as SendScreenshotResponse
+
+      setSendResult(response)
+
+      if (response.success) {
+        // Clear and return to idle on success
+        setScreenshotUrl(null)
+        setCaptureState("idle")
+      } else {
+        // Stay in captured state, allow retry
+        setCaptureState("captured")
+      }
+    } catch {
+      setSendResult({ success: false, error: "Failed to send screenshot" })
+      setCaptureState("captured")
+    }
+  }, [screenshotUrl])
+
+  const handleCancel = useCallback(() => {
+    setScreenshotUrl(null)
+    setError(null)
+    setSendResult(null)
+    setCaptureState("idle")
+  }, [])
+
+  const handleRetry = useCallback(() => {
+    setError(null)
+    setCaptureState("idle")
+  }, [])
+
   return (
     <main style={s.container}>
-      {updateBanner}
-
       <div style={s.header}>
         <h1 style={s.title}>📸 TV Capture</h1>
         <button style={s.navButton} onClick={onSettings}>
@@ -117,28 +159,113 @@ function CaptureView({
         </button>
       </div>
 
-      <div style={s.placeholderBox}>
-        <p style={s.placeholderTitle}>Screenshot Preview</p>
-        <p style={s.placeholderSub}>Captured screenshots will appear here</p>
+      {/* Screenshot Preview */}
+      <div style={s.previewContainer}>
+        {screenshotUrl ? (
+          <img 
+            src={screenshotUrl} 
+            style={s.previewImage} 
+            alt="Captured screenshot" 
+          />
+        ) : (
+          <div style={s.placeholderBox}>
+            <p style={s.placeholderTitle}>Screenshot Preview</p>
+            <p style={s.placeholderSub}>
+              {captureState === "idle" 
+                ? "Press Alt+S on TradingView or click Capture" 
+                : captureState === "capturing" 
+                  ? "Capturing..." 
+                  : "No screenshot captured"}
+            </p>
+          </div>
+        )}
       </div>
 
-      <div style={s.placeholderBox}>
-        <p style={s.placeholderTitle}>Message Compose</p>
-        <p style={s.placeholderSub}>Edit and review your trade message here</p>
+      {/* Caption Preview */}
+      <div style={s.captionPreview}>
+        <p style={s.captionText}>📸 Screenshot from TV Capture</p>
+        <p style={s.captionHint}>Caption will be editable in a future update</p>
       </div>
 
+      {/* Action Buttons */}
       <div style={s.buttonRow}>
-        <button style={{ ...s.button, ...s.buttonDisabled }} disabled>
-          Send
-        </button>
-        <button style={{ ...s.button, ...s.buttonDisabled }} disabled>
-          Cancel
-        </button>
+        {captureState === "idle" && (
+          <button 
+            style={s.captureButton} 
+            onClick={handleCapture}
+          >
+            📷 Capture
+          </button>
+        )}
+        
+        {captureState === "capturing" && (
+          <button 
+            style={s.buttonLoading} 
+            disabled
+          >
+            Capturing...
+          </button>
+        )}
+        
+        {captureState === "captured" && (
+          <>
+            <button 
+              style={s.sendButton} 
+              onClick={handleSend}
+            >
+              📤 Send to Telegram
+            </button>
+            <button 
+              style={s.cancelButton} 
+              onClick={handleCancel}
+            >
+              ✕ Cancel
+            </button>
+          </>
+        )}
+        
+        {captureState === "sending" && (
+          <button 
+            style={s.buttonLoading} 
+            disabled
+          >
+            Sending...
+          </button>
+        )}
+        
+        {captureState === "error" && (
+          <>
+            <button 
+              style={s.retryButton} 
+              onClick={handleRetry}
+            >
+              🔄 Retry
+            </button>
+            <button 
+              style={s.cancelButton} 
+              onClick={handleCancel}
+            >
+              ✕ Cancel
+            </button>
+          </>
+        )}
       </div>
 
-      <p style={s.comingSoon}>
-        Capture &amp; Send will be available in a future update.
-      </p>
+      {/* Error Message */}
+      {error && (
+        <div style={s.errorMessage}>
+          ✕ {error}
+        </div>
+      )}
+
+      {/* Send Result */}
+      {sendResult && (
+        <div style={sendResult.success ? s.sendSuccess : s.sendError}>
+          {sendResult.success 
+            ? "✓ Screenshot sent to Telegram!" 
+            : `✕ ${sendResult.error}`}
+        </div>
+      )}
     </main>
   )
 }
@@ -149,10 +276,8 @@ function CaptureView({
 
 function SettingsView({
   onBack,
-  updateBanner,
 }: {
   onBack: () => void
-  updateBanner: React.ReactNode
 }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [errors, setErrors] = useState<ValidationError[]>([])
@@ -244,8 +369,6 @@ function SettingsView({
 
   return (
     <main style={s.container}>
-      {updateBanner}
-
       {/* Header */}
       <div style={s.header}>
         <h1 style={s.title}>⚙ Settings</h1>
@@ -326,6 +449,29 @@ function SettingsView({
             <p style={s.errorText}>{fieldError("capture.delay").message}</p>
           )}
         </div>
+      </div>
+
+      {/* Keyboard Shortcut */}
+      <div style={s.section}>
+        <div style={s.sectionTitle}>Keyboard Shortcut</div>
+
+        <div style={s.shortcutRow}>
+          <kbd style={s.kbd}>Alt</kbd>
+          <span style={s.shortcutPlus}>+</span>
+          <kbd style={s.kbd}>S</kbd>
+          <span style={s.shortcutLabel}>Capture chart</span>
+        </div>
+
+        <p style={s.shortcutHint}>
+          Works on TradingView charts. The chart area is auto-detected and cropped.
+        </p>
+
+        <button
+          style={s.shortcutLink}
+          onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
+        >
+          Change shortcut in Chrome settings →
+        </button>
       </div>
 
       {/* AI (placeholder) */}
@@ -558,57 +704,6 @@ const s: Record<string, React.CSSProperties> = {
     color: "#9ca3af",
     textAlign: "center" as const,
   },
-  // Update banner styles
-  updateBanner: {
-    marginBottom: 12,
-    padding: "10px 12px",
-    backgroundColor: "#fef3c7",
-    border: "1px solid #f59e0b",
-    borderRadius: 6,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  updateBannerContent: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  updateIcon: {
-    fontSize: 16,
-  },
-  updateTitle: {
-    fontWeight: 600,
-    fontSize: 13,
-    color: "#92400e",
-  },
-  updateVersion: {
-    fontSize: 13,
-    color: "#b45309",
-  },
-  updateActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-  },
-  updateButton: {
-    padding: "4px 8px",
-    backgroundColor: "#f59e0b",
-    color: "#fff",
-    border: "none",
-    borderRadius: 4,
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  dismissButton: {
-    padding: "4px 6px",
-    backgroundColor: "transparent",
-    color: "#92400e",
-    border: "none",
-    fontSize: 14,
-    cursor: "pointer",
-  },
   // Test message styles
   testButtonRow: {
     marginTop: 8,
@@ -650,6 +745,168 @@ const s: Record<string, React.CSSProperties> = {
   testError: {
     marginTop: 8,
     padding: "8px 12px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "center" as const,
+    backgroundColor: "#fef2f2",
+    color: "#dc2626",
+    border: "1px solid #ef4444",
+  },
+  // Capture view - Preview styles
+  previewContainer: {
+    width: "100%",
+    minHeight: 200,
+    marginBottom: 12,
+    borderRadius: 8,
+    overflow: "hidden" as const,
+    backgroundColor: "#f5f5f5",
+  },
+  previewImage: {
+    width: "100%",
+    height: "auto",
+    display: "block",
+  },
+  // Shortcut documentation styles
+  shortcutRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  kbd: {
+    display: "inline-block",
+    padding: "2px 8px",
+    fontSize: 13,
+    fontFamily: "monospace",
+    backgroundColor: "#f3f4f6",
+    border: "1px solid #d1d5db",
+    borderRadius: 4,
+    color: "#374151",
+  },
+  shortcutPlus: {
+    color: "#9ca3af",
+    fontSize: 13,
+  },
+  shortcutLabel: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  shortcutHint: {
+    fontSize: 12,
+    color: "#9ca3af",
+    margin: "0 0 8px",
+  },
+  shortcutLink: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    fontSize: 12,
+    color: "#2563eb",
+    cursor: "pointer",
+    textDecoration: "underline",
+  },
+  // Caption preview
+  captionPreview: {
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 6,
+    backgroundColor: "#f9fafb",
+    border: "1px solid #e5e7eb",
+  },
+  captionText: {
+    fontSize: 13,
+    color: "#374151",
+    margin: 0,
+  },
+  captionHint: {
+    fontSize: 11,
+    color: "#9ca3af",
+    margin: "4px 0 0",
+    fontStyle: "italic" as const,
+  },
+  // Action buttons
+  captureButton: {
+    flex: 1,
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "#2563eb",
+    color: "#fff",
+  },
+  sendButton: {
+    flex: 1,
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "#16a34a",
+    color: "#fff",
+  },
+  cancelButton: {
+    padding: "12px 16px",
+    border: "1px solid #d1d5db",
+    borderRadius: 6,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "#fff",
+    color: "#6b7280",
+  },
+  retryButton: {
+    flex: 1,
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "#f59e0b",
+    color: "#fff",
+  },
+  buttonLoading: {
+    flex: 1,
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "not-allowed",
+    backgroundColor: "#93c5fd",
+    color: "#fff",
+  },
+  // Messages
+  errorMessage: {
+    marginTop: 8,
+    padding: "10px 12px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "center" as const,
+    backgroundColor: "#fef2f2",
+    color: "#dc2626",
+    border: "1px solid #ef4444",
+  },
+  sendSuccess: {
+    marginTop: 8,
+    padding: "10px 12px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "center" as const,
+    backgroundColor: "#f0fdf4",
+    color: "#16a34a",
+    border: "1px solid #22c55e",
+  },
+  sendError: {
+    marginTop: 8,
+    padding: "10px 12px",
     borderRadius: 6,
     fontSize: 13,
     fontWeight: 500,

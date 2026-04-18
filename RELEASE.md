@@ -6,11 +6,29 @@ This document describes how to create a new release of TV Capture for distributi
 
 ---
 
+## ⚠️ Important: Self-Hosted Updates Do Not Work
+
+**We attempted to set up self-hosted auto-updates using GitHub Pages (`gh-pages` branch with `update.xml`). This was removed on 2026-04-18 because:**
+
+1. **Chrome blocks non-CWS extensions on macOS/Windows** (since v127, July 2024)
+2. Even with `.crx` and `key.pem` for a stable extension ID, Chrome refuses to enable the extension (toggle is greyed out)
+3. There is no user-facing bypass — this is an enforced security boundary
+
+**What was removed:**
+- `gh-pages` branch (deleted)
+- `update_url` from manifest
+- `lib-update.ts` (GitHub API update checker)
+- `scripts/update-manifest.js`
+- Update banner UI in popup and sidepanel
+
+**Current distribution method:** "Load Unpacked" for development/testing. For production distribution, submit to Chrome Web Store (Unlisted) or Firefox Add-ons.
+
+---
+
 ## Prerequisites
 
 - Extension is tested and ready for release
-- `key.pem` exists (for stable extension ID)
-- GitHub Pages is enabled (`gh-pages` branch)
+- `key.pem` exists (for stable extension ID — keep this even without auto-updates!)
 - You have push access to `mazilabs/tv-capture` repository
 
 ---
@@ -53,7 +71,9 @@ Verify all features work correctly.
 
 ---
 
-### Step 3: Pack Extension
+### Step 3: Pack Extension (Optional)
+
+For backup/archive purposes, you can pack the extension:
 
 #### Option A: Using pnpm build:crx
 
@@ -63,7 +83,7 @@ pnpm build:crx
 
 This creates `dist/tv-capture-{version}.zip`.
 
-#### Option B: Using Chrome's Pack Extension (Recommended for .crx)
+#### Option B: Using Chrome's Pack Extension
 
 1. Load unpacked from `build/chrome-mv3-prod/`
 2. Go to `chrome://extensions`
@@ -92,91 +112,19 @@ git push origin main --tags
 2. Select tag: `v0.2.0`
 3. Title: `TV Capture v0.2.0`
 4. Description: List of changes (use "Generate release notes" button)
-5. Attach `.crx` or `.zip` file
+5. Attach `.crx` or `.zip` file (optional, for archive)
 6. Publish
 
 ---
 
-### Step 6: Update update.xml
+### Step 6: Notify Test Users
 
-Generate the update manifest:
+Send message to test users with instructions to update:
 
-```bash
-EXTENSION_ID=your-extension-id node scripts/update-manifest.js
-```
-
-Then update `gh-pages` branch:
-
-```bash
-# Switch to gh-pages branch
-git checkout gh-pages
-
-# Copy generated update.xml
-cp dist/update.xml updates/update.xml
-
-# Commit and push
-git add updates/update.xml
-git commit -m "update: v0.2.0"
-git push origin gh-pages
-
-# Switch back to main
-git checkout main
-```
-
----
-
-### Step 7: Verify Update URL
-
-Test that the update manifest is accessible:
-
-```bash
-curl https://mazilabs.github.io/tv-capture/updates/update.xml
-```
-
-Should return XML with the new version.
-
----
-
-### Step 8: Notify Test Users
-
-Send message to test users:
-
-> New version 0.2.0 is available! Open the TV Capture extension and click "Update Now" to get the latest version.
-
----
-
-## Quick Reference
-
-### Files to update for each release
-
-| File | What to change |
-|------|----------------|
-| `package.json` | `version` field |
-| `gh-pages/updates/update.xml` | `version` and `codebase` URL |
-
-### Files generated during release
-
-| File | Location |
-|------|----------|
-| Build output | `build/chrome-mv3-prod/` |
-| .crx/.zip package | `dist/tv-capture-{version}.crx` |
-| update.xml | `dist/update.xml` |
-
----
-
-## Rollback Procedure
-
-If a release has critical bugs:
-
-1. Fix the issue or revert to previous code
-2. Create a hotfix release (e.g., `0.2.1`)
-3. Update `gh-pages/updates/update.xml` to point to the fixed version
-4. Notify users
-
-Alternatively, to revert to an older version:
-
-1. Update `gh-pages/updates/update.xml` with old version URL
-2. Notify users to reinstall
+> New version 0.2.0 is available! To update:
+> 1. Go to `chrome://extensions`
+> 2. Remove the old extension
+> 3. Click "Load unpacked" and select the new `build/chrome-mv3-prod/` folder
 
 ---
 
@@ -185,6 +133,13 @@ Alternatively, to revert to an older version:
 ### Location
 
 `key.pem` should be stored securely and **NEVER committed to git**.
+
+### Why keep it?
+
+Even without self-hosted auto-updates, `key.pem` is important:
+- Stable extension ID when loading unpacked
+- Required if you later submit to Chrome Web Store
+- Required for Firefox self-hosted distribution (backup plan)
 
 ### Generating a new key
 
@@ -207,13 +162,22 @@ Before releasing:
 - [ ] Version bumped in `package.json`
 - [ ] Build successful (`pnpm build`)
 - [ ] Extension tested manually
-- [ ] `.crx`/`.zip` packaged
+- [ ] `.crx`/`.zip` packaged (optional, for archive)
 - [ ] Git tag created and pushed
-- [ ] GitHub Release created with attachment
-- [ ] `update.xml` updated on `gh-pages`
-- [ ] Update URL verified
-- [ ] Test users notified
+- [ ] GitHub Release created (optional)
+- [ ] Test users notified with update instructions
 
 ---
 
-*Last updated: 2026-04-17*
+## Future: Chrome Web Store Distribution
+
+For production distribution with auto-updates, the path forward is:
+
+1. Submit to Chrome Web Store as **Unlisted** (not public, but auto-updates work)
+2. Users install once from CWS, then get updates automatically
+3. No `gh-pages` or `update.xml` needed
+
+---
+
+*Last updated: 2026-04-18*
+*Previous version (with gh-pages): removed due to Chrome blocking non-CWS extensions*
