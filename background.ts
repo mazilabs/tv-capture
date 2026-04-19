@@ -21,6 +21,7 @@ import {
   type CaptureResponse,
   type SendScreenshotResponse,
   type ChartBoundsResponse,
+  type SendPhotoWithCaptionMessage,
 } from "./lib-messages"
 import { loadSettings, isConfigured } from "./lib-storage"
 import { sendMessage, sendPhoto } from "./lib-telegram"
@@ -95,7 +96,6 @@ async function performCapture(tab: chrome.tabs.Tab): Promise<{
       }
     } catch {
       // Content script not injected or not responding — use full screenshot
-      console.log("Chart bounds not available, using full screenshot")
     }
   }
 
@@ -241,6 +241,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true // async response
   }
 
+  // Send photo with optional caption (Phase 6)
+  if (type === MESSAGE_TYPES.SEND_PHOTO_WITH_CAPTION) {
+    const { dataUrl, caption } = message as SendPhotoWithCaptionMessage
+    handleSendPhotoWithCaption(dataUrl, caption)
+      .then(sendResponse)
+      .catch(() => {
+        sendResponse({ success: false, error: "Failed to send" })
+      })
+    return true // async response
+  }
+
   return false
 })
 
@@ -378,6 +389,36 @@ async function handleSendScreenshot(
     settings.telegram.chatId.trim(),
     dataUrl,
     "📸 Screenshot from TV Capture"
+  )
+
+  return result
+}
+
+// ---------------------------------------------------------------------------
+// Send photo with caption handler (Phase 6)
+// ---------------------------------------------------------------------------
+
+async function handleSendPhotoWithCaption(
+  dataUrl: string,
+  caption?: string
+): Promise<SendScreenshotResponse> {
+  const settings = await loadSettings()
+
+  if (!isConfigured(settings)) {
+    return {
+      success: false,
+      error: "Please configure Telegram settings first.",
+    }
+  }
+
+  // Use empty string if caption is undefined
+  const captionText = caption?.trim() || ""
+
+  const result = await sendPhoto(
+    settings.telegram.botToken.trim(),
+    settings.telegram.chatId.trim(),
+    dataUrl,
+    captionText
   )
 
   return result

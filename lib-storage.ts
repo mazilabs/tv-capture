@@ -12,13 +12,6 @@ export type Settings = {
     botToken: string
     chatId: string
   }
-  capture: {
-    delay: number
-  }
-  ai: {
-    apiKey: string
-    model: string
-  }
 }
 
 export type ValidationError = {
@@ -34,13 +27,6 @@ export const DEFAULT_SETTINGS: Settings = {
   telegram: {
     botToken: "",
     chatId: "",
-  },
-  capture: {
-    delay: 200,
-  },
-  ai: {
-    apiKey: "",
-    model: "",
   },
 }
 
@@ -87,11 +73,10 @@ export async function clearSettings(): Promise<void> {
  * - If one telegram field is filled, the other must be too
  * - botToken must look like a Telegram bot token (starts with digit, contains ":")
  * - chatId must be numeric or start with "-"
- * - delay must be a number between 50 and 2000
  */
 export function validateSettings(settings: Settings): ValidationError[] {
   const errors: ValidationError[] = []
-  const { telegram, capture } = settings
+  const { telegram } = settings
   const tokenFilled = telegram.botToken.trim().length > 0
   const chatIdFilled = telegram.chatId.trim().length > 0
 
@@ -129,19 +114,6 @@ export function validateSettings(settings: Settings): ValidationError[] {
         message: "Chat ID must be a number (or negative number for groups).",
       })
     }
-  }
-
-  // Capture delay
-  if (typeof capture.delay !== "number" || isNaN(capture.delay)) {
-    errors.push({
-      field: "capture.delay",
-      message: "Delay must be a number.",
-    })
-  } else if (capture.delay < 50 || capture.delay > 2000) {
-    errors.push({
-      field: "capture.delay",
-      message: "Delay must be between 50 and 2000 ms.",
-    })
   }
 
   return errors

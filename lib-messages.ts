@@ -27,6 +27,9 @@ export const MESSAGE_TYPES = {
 
   // Content script → background (chart bounds)
   GET_CHART_BOUNDS: "get-chart-bounds",
+
+  // Send photo with optional caption (Phase 6)
+  SEND_PHOTO_WITH_CAPTION: "send-photo-with-caption",
 } as const
 
 export type MessageType = (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES]
@@ -96,4 +99,14 @@ export type ShortcutCaptureMessage = {
   type: typeof MESSAGE_TYPES.SHORTCUT_CAPTURE
   dataUrl: string
   cropped: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Send photo with caption (Phase 6)
+// ---------------------------------------------------------------------------
+
+export type SendPhotoWithCaptionMessage = {
+  type: typeof MESSAGE_TYPES.SEND_PHOTO_WITH_CAPTION
+  dataUrl: string
+  caption?: string
 }
