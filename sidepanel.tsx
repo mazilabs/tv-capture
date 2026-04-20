@@ -565,8 +565,6 @@ function SettingsView({
 }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [errors, setErrors] = useState<ValidationError[]>([])
-  const [feedback, setFeedback] = useState<"success" | null>(null)
-  const [saving, setSaving] = useState(false)
   const [testLoading, setTestLoading] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
 
@@ -633,13 +631,6 @@ function SettingsView({
     [templates]
   )
 
-  // Auto-dismiss feedback
-  useEffect(() => {
-    if (!feedback) return
-    const timer = setTimeout(() => setFeedback(null), 2000)
-    return () => clearTimeout(timer)
-  }, [feedback])
-
   // Auto-dismiss test result
   useEffect(() => {
     if (!testResult) return
@@ -656,30 +647,44 @@ function SettingsView({
         [group]: { ...settings[group as keyof Settings], [field]: value },
       })
       setErrors((prev) => prev.filter((e) => e.field !== path))
-      setFeedback(null)
     },
     [settings],
   )
 
-  const handleSave = useCallback(async () => {
-    if (!settings) return
-    const validationErrors = validateSettings(settings)
-    setErrors(validationErrors)
-    if (validationErrors.length > 0) return
+  // Auto-save a single field (called on blur)
+  const saveField = useCallback(
+    async (path: string, value: string) => {
+      if (!settings) return
 
-    setSaving(true)
-    try {
-      await saveSettings(settings)
-      setFeedback("success")
-    } catch {
-      setErrors([
-        {
-          field: "_general",
-          message: "Failed to save settings. Please try again.",
-        },
-      ])
-    } finally {
-      setSaving(false)
+      // Update local state
+      const [group, field] = path.split(".")
+      const newSettings = {
+        ...settings,
+        [group]: { ...settings[group as keyof Settings], [field]: value },
+      }
+
+      // Validate only this field
+      const validationErrors = validateSettings(newSettings)
+      const fieldErrors = validationErrors.filter((e) => e.field === path)
+      setErrors((prev) => [...prev.filter((e) => e.field !== path), ...fieldErrors])
+
+      // Save to storage (even if validation fails, we want to persist user input)
+      try {
+        await saveSettings(newSettings)
+        setSettings(newSettings)
+      } catch {
+        // Silently fail - storage will be retried on next blur
+      }
+    },
+    [settings],
+  )
+
+  // Cleanup: save on unmount (safety net)
+  useEffect(() => {
+    return () => {
+      if (settings) {
+        saveSettings(settings).catch(() => {})
+      }
     }
   }, [settings])
 
@@ -782,6 +787,8 @@ function SettingsView({
               if (!fieldError("telegram.botToken")) {
                 (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }
+              // Auto-save on blur
+              saveField("telegram.botToken", settings.telegram.botToken)
             }}
           />
           {fieldError("telegram.botToken") && (
@@ -806,6 +813,8 @@ function SettingsView({
               if (!fieldError("telegram.chatId")) {
                 (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }
+              // Auto-save on blur
+              saveField("telegram.chatId", settings.telegram.chatId)
             }}
           />
           {fieldError("telegram.chatId") && (
@@ -925,30 +934,6 @@ function SettingsView({
       {/* General error */}
       {fieldError("_general") && (
         <p style={s.errorText}>{fieldError("_general").message}</p>
-      )}
-
-      {/* Save */}
-      <button
-        style={saving ? s.saveButtonDisabled : s.saveButton}
-        onClick={handleSave}
-        disabled={saving}
-        onMouseEnter={(e) => {
-          if (!saving) {
-            (e.target as HTMLButtonElement).style.backgroundColor = "#14b8a6"
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!saving) {
-            (e.target as HTMLButtonElement).style.backgroundColor = "#0d9488"
-          }
-        }}
-      >
-        {saving ? "Saving..." : "Save Settings"}
-      </button>
-
-      {/* Feedback */}
-      {feedback === "success" && (
-        <div style={s.feedbackSuccess}>Settings saved</div>
       )}
 
       {/* Delete Confirmation Popup */}
@@ -1082,43 +1067,6 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "#ef4444",
     marginTop: 4,
-  },
-  // Save button
-  saveButton: {
-    width: "100%",
-    padding: "12px 16px",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "pointer",
-    backgroundColor: "#0d9488",
-    color: "#fff",
-    marginTop: 8,
-    transition: "background-color 150ms",
-  },
-  saveButtonDisabled: {
-    width: "100%",
-    padding: "12px 16px",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "not-allowed",
-    backgroundColor: "#134e4a",
-    color: "#6b7280",
-    marginTop: 8,
-  },
-  feedbackSuccess: {
-    textAlign: "center" as const,
-    fontSize: 13,
-    fontWeight: 600,
-    marginTop: 8,
-    padding: "8px 0",
-    borderRadius: 8,
-    color: "#10b981",
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    border: "1px solid rgba(16, 185, 129, 0.3)",
   },
   // Capture view
   placeholderBox: {
