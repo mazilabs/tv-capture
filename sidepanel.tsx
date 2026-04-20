@@ -631,10 +631,11 @@ function SettingsView({
     [templates]
   )
 
-  // Auto-dismiss test result
+  // Auto-dismiss test result (2s success, 3s error)
   useEffect(() => {
     if (!testResult) return
-    const timer = setTimeout(() => setTestResult(null), 5000)
+    const duration = testResult.success ? 2000 : 3000
+    const timer = setTimeout(() => setTestResult(null), duration)
     return () => clearTimeout(timer)
   }, [testResult])
 
@@ -822,33 +823,40 @@ function SettingsView({
           )}
         </div>
 
-        {/* Test Connection Button */}
+        {/* Test Connection Button with Inline Feedback */}
         <div style={s.testButtonRow}>
           <button
-            style={testLoading ? s.testButtonDisabled : s.testButton}
+            style={
+              testLoading
+                ? s.testButtonLoading
+                : testResult?.success
+                  ? s.testButtonSuccess
+                  : testResult?.success === false
+                    ? s.testButtonError
+                    : s.testButton
+            }
             onClick={handleTestMessage}
-            disabled={testLoading}
+            disabled={testLoading || !!testResult}
             onMouseEnter={(e) => {
-              if (!testLoading) {
+              if (!testLoading && !testResult) {
                 (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
               }
             }}
             onMouseLeave={(e) => {
-              if (!testLoading) {
+              if (!testLoading && !testResult) {
                 (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
               }
             }}
           >
-            {testLoading ? "Sending..." : "Test Connection"}
+            {testLoading
+              ? "Sending..."
+              : testResult?.success
+                ? "✓ Sent!"
+                : testResult?.success === false
+                  ? "✗ Failed"
+                  : "Test Connection"}
           </button>
         </div>
-
-        {/* Test Result Feedback */}
-        {testResult && (
-          <div style={testResult.success ? s.testSuccess : s.testError}>
-            {testResult.success ? "Test message sent!" : testResult.error}
-          </div>
-        )}
       </CollapsibleSection>
 
       {/* Keyboard Shortcuts Section */}
@@ -1094,7 +1102,7 @@ const s: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     marginTop: "auto" as const,
   },
-  // Test message styles
+  // Test message styles - Button with inline feedback
   testButtonRow: {
     marginTop: 8,
     marginBottom: 12,
@@ -1109,9 +1117,9 @@ const s: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     backgroundColor: "transparent",
     color: "#14b8a6",
-    transition: "all 150ms",
+    transition: "all 200ms",
   },
-  testButtonDisabled: {
+  testButtonLoading: {
     width: "100%",
     padding: "10px 12px",
     border: "1px solid #134e4a",
@@ -1119,30 +1127,32 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     cursor: "not-allowed",
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(13, 148, 136, 0.08)",
     color: "#6b7280",
   },
-  testSuccess: {
-    marginTop: 8,
+  testButtonSuccess: {
+    width: "100%",
     padding: "10px 12px",
+    border: "none",
     borderRadius: 8,
     fontSize: 13,
-    fontWeight: 500,
-    textAlign: "center" as const,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    color: "#10b981",
-    border: "1px solid rgba(16, 185, 129, 0.3)",
+    fontWeight: 600,
+    cursor: "default",
+    backgroundColor: "#10b981",
+    color: "#fff",
+    transition: "all 200ms",
   },
-  testError: {
-    marginTop: 8,
+  testButtonError: {
+    width: "100%",
     padding: "10px 12px",
+    border: "none",
     borderRadius: 8,
     fontSize: 13,
-    fontWeight: 500,
-    textAlign: "center" as const,
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    color: "#ef4444",
-    border: "1px solid rgba(239, 68, 68, 0.3)",
+    fontWeight: 600,
+    cursor: "default",
+    backgroundColor: "#ef4444",
+    color: "#fff",
+    transition: "all 200ms",
   },
   // Capture view - Preview styles
   previewContainer: {
