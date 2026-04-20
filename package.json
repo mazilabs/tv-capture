@@ -41,7 +41,8 @@
   },
   "manifest": {
     "host_permissions": [
-      "<all_urls>"
+      "https://api.telegram.org/*",
+      "https://*.tradingview.com/*"
     ],
     "permissions": [
       "sidePanel",
