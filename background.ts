@@ -7,7 +7,7 @@
  *  - CAPTURE_SCREENSHOT → manual capture from side panel
  *  - POPUP_CAPTURE → capture from popup button (opens panel + captures)
  *  - SEND_SCREENSHOT → send captured image to Telegram
- *  - Keyboard shortcut (Alt+S) → TradingView-aware capture + crop
+ *  - Keyboard shortcut (Opt+S) → TradingView-aware capture + crop
  *
  * Gesture architecture (Phase 5.1):
  *  - Proactive windowId/tabId cache via tabs.onActivated/onUpdated

@@ -82,7 +82,7 @@ function SidePanel() {
 // Capture View
 // ---------------------------------------------------------------------------
 
-type CaptureState = "idle" | "capturing" | "captured" | "sending" | "error"
+type CaptureState = "idle" | "capturing" | "captured" | "sending"
 type CaptureViewMode = "grid" | "textarea" | "form"
 
 function CaptureView({
@@ -115,7 +115,14 @@ function CaptureView({
     return () => clearTimeout(timer)
   }, [sendResult])
 
-  // Listen for shortcut captures from background (Alt+S)
+  // Auto-dismiss error message after 5 seconds
+  useEffect(() => {
+    if (!error) return
+    const timer = setTimeout(() => setError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [error])
+
+  // Listen for shortcut captures from background (Opt+S)
   useEffect(() => {
     const listener = (message: { type: string; dataUrl?: string; cropped?: boolean }) => {
       if (message.type === MESSAGE_TYPES.SHORTCUT_CAPTURE && message.dataUrl) {
@@ -152,11 +159,11 @@ function CaptureView({
         setMode("grid")
       } else {
         setError(response.error)
-        setCaptureState("error")
+        setCaptureState("idle")
       }
     } catch {
       setError("Failed to capture screenshot")
-      setCaptureState("error")
+      setCaptureState("idle")
     }
   }, [])
 
@@ -239,11 +246,6 @@ function CaptureView({
     setCaption("")
   }, [])
 
-  const handleRetry = useCallback(() => {
-    setError(null)
-    setCaptureState("idle")
-  }, [])
-
   // Create new template from form
   const handleCreateTemplate = useCallback(async (name: string, body: string) => {
     await createTemplate(name, body)
@@ -294,7 +296,7 @@ function CaptureView({
             <p style={s.placeholderTitle}>Screenshot Preview</p>
             <p style={s.placeholderSub}>
               {captureState === "idle"
-                ? "Press Alt+S on TradingView or click Capture"
+                ? "Press Opt+S on TradingView or click Capture"
                 : captureState === "capturing"
                   ? "Capturing..."
                   : "No screenshot captured"}
@@ -503,35 +505,6 @@ function CaptureView({
           >
             Sending...
           </button>
-        )}
-
-        {captureState === "error" && (
-          <>
-            <button
-              style={s.retryButton}
-              onClick={handleRetry}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "#d97706"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "#f59e0b"
-              }}
-            >
-              Retry
-            </button>
-            <button
-              style={s.cancelButton}
-              onClick={handleCancel}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-              }}
-            >
-              Cancel
-            </button>
-          </>
         )}
       </div>
 
@@ -862,7 +835,7 @@ function SettingsView({
       {/* Keyboard Shortcuts Section */}
       <CollapsibleSection title="Keyboard Shortcuts">
         <div style={s.shortcutRow}>
-          <kbd style={s.kbd}>Alt</kbd>
+          <kbd style={s.kbd}>Opt</kbd>
           <span style={s.shortcutPlus}>+</span>
           <kbd style={s.kbd}>S</kbd>
           <span style={s.shortcutLabel}>Capture chart</span>
@@ -1335,18 +1308,6 @@ const s: Record<string, React.CSSProperties> = {
     backgroundColor: "transparent",
     color: "#9ca3af",
     transition: "all 150ms",
-  },
-  retryButton: {
-    flex: 1,
-    padding: "12px 16px",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "pointer",
-    backgroundColor: "#f59e0b",
-    color: "#fff",
-    transition: "background-color 150ms",
   },
   buttonLoading: {
     flex: 1,
