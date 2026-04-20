@@ -441,15 +441,6 @@ function CaptureView({
           </>
         )}
 
-        {captureState === "captured" && mode === "form" && screenshotUrl && (
-          <button
-            style={s.cancelButton}
-            onClick={handleCancel}
-          >
-            ✕ Cancel
-          </button>
-        )}
-
         {captureState === "sending" && mode !== "textarea" && (
           <button
             style={s.buttonLoading}
@@ -678,7 +669,7 @@ function SettingsView({
 
   if (!settings) {
     return (
-      <main style={s.container}>
+      <main style={s.settingsContainer}>
         <p>Loading settings...</p>
       </main>
     )
@@ -687,7 +678,7 @@ function SettingsView({
   const fieldError = (field: string) => errors.find((e) => e.field === field)
 
   return (
-    <main style={s.container}>
+    <main style={s.settingsContainer}>
       {/* Header */}
       <div style={s.header}>
         <h1 style={s.title}>⚙ Settings</h1>
@@ -870,7 +861,25 @@ function SettingsView({
 // ---------------------------------------------------------------------------
 
 const s: Record<string, React.CSSProperties> = {
+  // Main container with flex layout for sticky footer
   container: {
+    padding: 16,
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontSize: 14,
+    color: "#1a1a1a",
+    // Flex layout for capture view
+    display: "flex",
+    flexDirection: "column" as const,
+    height: "100vh",
+    boxSizing: "border-box" as const,
+    // Hide scrollbar completely
+    overflowY: "auto" as const,
+    scrollbarWidth: "none" as const, // Firefox
+    // Webkit scrollbar hide (applied via inline style hack)
+  },
+  // Container for settings view (no flex, normal flow)
+  settingsContainer: {
     padding: 16,
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -881,7 +890,8 @@ const s: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 16,
+    flexShrink: 0,
   },
   title: {
     fontSize: 18,
@@ -987,6 +997,8 @@ const s: Record<string, React.CSSProperties> = {
     display: "flex",
     gap: 8,
     marginBottom: 12,
+    flexShrink: 0,
+    marginTop: "auto" as const,
   },
   // Test message styles
   testButtonRow: {
@@ -1045,6 +1057,7 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     overflow: "hidden" as const,
     backgroundColor: "#f5f5f5",
+    flexShrink: 0,
   },
   previewImage: {
     width: "100%",
@@ -1113,6 +1126,7 @@ const s: Record<string, React.CSSProperties> = {
   // Template grid styles
   templateSection: {
     marginBottom: 12,
+    flexShrink: 0,
   },
   tileRow: {
     display: "grid",
@@ -1125,34 +1139,41 @@ const s: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "1fr 1fr",
     gap: 8,
   },
-  // Textarea view styles
+  // Textarea view styles - fills remaining space
   textareaSection: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column" as const,
     marginBottom: 12,
+    minHeight: 0, // Allow shrinking
   },
   textareaContainer: {
     flex: 1,
     display: "flex",
     flexDirection: "column" as const,
+    minHeight: 0,
   },
   textarea: {
+    flex: 1,
     width: "100%",
     padding: "12px",
     border: "1px solid #d1d5db",
     borderRadius: 6,
     fontSize: 14,
-    resize: "vertical" as const,
-    minHeight: 120,
+    resize: "none" as const, // Auto-resize via flex
+    minHeight: 80,
     fontFamily: "inherit",
     boxSizing: "border-box" as const,
   },
   textareaError: {
+    flex: 1,
     width: "100%",
     padding: "12px",
     border: "1px solid #ef4444",
     borderRadius: 6,
     fontSize: 14,
-    resize: "vertical" as const,
-    minHeight: 120,
+    resize: "none" as const,
+    minHeight: 80,
     fontFamily: "inherit",
     boxSizing: "border-box" as const,
   },
@@ -1168,9 +1189,13 @@ const s: Record<string, React.CSSProperties> = {
     textAlign: "right" as const,
     marginTop: 4,
   },
-  // Form view styles
+  // Form view styles - fills remaining space
   formSection: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column" as const,
     marginBottom: 12,
+    minHeight: 0,
   },
   // Action buttons
   captureButton: {

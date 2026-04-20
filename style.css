@@ -1,0 +1,15 @@
+/**
+ * TV Capture — Global Styles
+ *
+ * Loaded automatically by Plasmo.
+ */
+
+/* Hide scrollbar completely for sidepanel */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Firefox scrollbar hide */
+* {
+  scrollbar-width: none;
+}

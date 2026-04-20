@@ -50,16 +50,28 @@ export function TemplateForm({
       display: "flex",
       flexDirection: "column" as const,
       gap: 16,
+      flex: 1,
+      minHeight: 0,
     },
     title: {
       fontSize: 16,
       fontWeight: 600,
       margin: 0,
+      flexShrink: 0,
     },
     field: {
       display: "flex",
       flexDirection: "column" as const,
       gap: 4,
+      flexShrink: 0,
+    },
+    // Body field fills remaining space
+    bodyField: {
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: 4,
+      flex: 1,
+      minHeight: 0,
     },
     label: {
       fontSize: 13,
@@ -85,25 +97,27 @@ export function TemplateForm({
       boxSizing: "border-box" as const,
     },
     textarea: {
+      flex: 1,
       padding: "8px 12px",
       border: "1px solid #d1d5db",
       borderRadius: 6,
       fontSize: 14,
       outline: "none",
-      resize: "vertical" as const,
-      minHeight: 120,
+      resize: "none" as const,
+      minHeight: 80,
       width: "100%",
       boxSizing: "border-box" as const,
       fontFamily: "inherit",
     },
     textareaError: {
+      flex: 1,
       padding: "8px 12px",
       border: "1px solid #ef4444",
       borderRadius: 6,
       fontSize: 14,
       outline: "none",
-      resize: "vertical" as const,
-      minHeight: 120,
+      resize: "none" as const,
+      minHeight: 80,
       width: "100%",
       boxSizing: "border-box" as const,
       fontFamily: "inherit",
@@ -126,6 +140,7 @@ export function TemplateForm({
       display: "flex",
       gap: 8,
       marginTop: 8,
+      flexShrink: 0,
     },
     cancelButton: {
       flex: 1,
@@ -187,15 +202,14 @@ export function TemplateForm({
         )}
       </div>
 
-      {/* Body Field */}
-      <div style={styles.field}>
+      {/* Body Field - fills remaining space */}
+      <div style={styles.bodyField}>
         <label style={styles.label}>Template Message</label>
         <textarea
           style={!bodyValid ? styles.textareaError : styles.textarea}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Your caption text..."
-          rows={5}
         />
         <div style={!bodyValid ? styles.counterError : styles.counter}>
           {bodyLength}/{MAX_BODY_LENGTH} characters
