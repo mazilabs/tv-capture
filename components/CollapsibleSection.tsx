@@ -92,7 +92,10 @@ export function CollapsibleSection({
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
+      <div 
+        style={styles.header} 
+        onClick={() => setIsOpen(!isOpen)}
+      >
         <div style={styles.titleRow}>
           <span style={styles.title}>{title}</span>
           {infoTooltip && (
@@ -114,12 +117,7 @@ export function CollapsibleSection({
             </span>
           )}
         </div>
-        <span
-          style={styles.arrow}
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          ▼
-        </span>
+        <span style={styles.arrow}>▼</span>
       </div>
       {/* Grid container enables smooth height animation */}
       <div style={styles.gridContainer}>
