@@ -952,6 +952,11 @@ function SettingsView({
           </div>
         </div>
       )}
+
+      {/* Branding */}
+      <div style={s.branding}>
+        By Mazi Labs
+      </div>
     </main>
   )
 }
@@ -1436,6 +1441,16 @@ const s: Record<string, React.CSSProperties> = {
     backgroundColor: "#ef4444",
     color: "#fff",
     transition: "background-color 150ms",
+  },
+  // Branding
+  branding: {
+    textAlign: "center" as const,
+    padding: "16px 0 8px",
+    fontSize: 12,
+    color: "#6b7280",
+    textDecoration: "underline" as const,
+    textDecorationColor: "#4b5563",
+    letterSpacing: "0.02em",
   },
 }
 
