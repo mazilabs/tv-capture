@@ -2,6 +2,8 @@
  * TV Capture — Template List Item Component
  *
  * Single template row with name + 3-dot menu.
+ * 
+ * Updated: Dark Glassmorphism theme (2026-04-20)
  */
 
 import { useState, useRef, useEffect } from "react"
@@ -48,17 +50,18 @@ export function TemplateListItem({
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: "10px 12px",
-      border: "1px solid #e5e7eb",
-      borderRadius: 6,
+      padding: "12px 14px",
+      border: "1px solid #3a3f4a",
+      borderRadius: 8,
       marginBottom: 8,
-      backgroundColor: "#fff",
-      // cursor handled by SortableTemplateItem wrapper
+      backgroundColor: "rgba(40, 48, 56, 0.7)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
     },
     name: {
       fontSize: 14,
       fontWeight: 500,
-      color: "#1a1a1a",
+      color: "#e5e7eb",
       flex: 1,
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -79,35 +82,39 @@ export function TemplateListItem({
       position: "absolute" as const,
       right: 0,
       top: "100%",
-      backgroundColor: "#fff",
-      border: "1px solid #d1d5db",
-      borderRadius: 6,
-      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+      backgroundColor: "#252830",
+      border: "1px solid #3a3f4a",
+      borderRadius: 8,
+      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
       zIndex: 100,
       minWidth: 100,
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
     },
     menuItem: {
       display: "block",
       width: "100%",
-      padding: "8px 12px",
+      padding: "10px 14px",
       border: "none",
       background: "none",
       textAlign: "left" as const,
       fontSize: 13,
       cursor: "pointer",
-      color: "#374151",
+      color: "#9ca3af",
+      transition: "background-color 100ms",
     },
     menuItemDelete: {
       display: "block",
       width: "100%",
-      padding: "8px 12px",
+      padding: "10px 14px",
       border: "none",
       background: "none",
-      borderTop: "1px solid #e5e7eb",
+      borderTop: "1px solid #3a3f4a",
       textAlign: "left" as const,
       fontSize: 13,
       cursor: "pointer",
       color: "#ef4444",
+      transition: "background-color 100ms",
     },
   }
 
@@ -132,6 +139,12 @@ export function TemplateListItem({
                 setShowMenu(false)
                 onEdit(template.id)
               }}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+              }}
             >
               Edit
             </button>
@@ -140,6 +153,12 @@ export function TemplateListItem({
               onClick={() => {
                 setShowMenu(false)
                 onDelete(template.id)
+              }}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "rgba(239, 68, 68, 0.1)"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
               }}
             >
               Delete

@@ -3,6 +3,8 @@
  *
  * Shows extension name, version, configuration status,
  * and two buttons: Settings and Capture.
+ * 
+ * Updated: Dark Glassmorphism theme (2026-04-20)
  */
 
 import { useEffect, useState } from "react"
@@ -74,18 +76,39 @@ function Popup() {
         <div
           style={{
             ...styles.dot,
-            backgroundColor: configured ? "#22c55e" : "#ef4444",
+            backgroundColor: configured ? "#10b981" : "#ef4444",
+            boxShadow: configured 
+              ? "0 0 8px rgba(16, 185, 129, 0.5)" 
+              : "0 0 8px rgba(239, 68, 68, 0.5)",
           }}
         />
         <span style={styles.statusText}>{statusLabel}</span>
       </div>
 
       <div style={styles.buttonRow}>
-        <button style={{ ...styles.button, ...styles.buttonSettings }} onClick={handleOpenSettings}>
-          ⚙ Settings
+        <button 
+          style={styles.buttonSettings} 
+          onClick={handleOpenSettings}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#252830"
+          }}
+        >
+          Settings
         </button>
-        <button style={{ ...styles.button, ...styles.buttonCapture }} onClick={handleCapture}>
-          📸 Capture
+        <button 
+          style={styles.buttonCapture} 
+          onClick={handleCapture}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#14b8a6"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#0d9488"
+          }}
+        >
+          Capture
         </button>
       </div>
     </main>
@@ -94,12 +117,17 @@ function Popup() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    padding: 16,
+    padding: 20,
     minWidth: 280,
+    minHeight: 140,
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: 14,
-    color: "#1a1a1a",
+    color: "#e5e7eb",
+    backgroundColor: "#1e2028",
+    // No border-radius - fill entire Chrome popup frame
+    margin: 0,
+    boxSizing: "border-box" as const,
   },
   header: {
     display: "flex",
@@ -111,19 +139,23 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 18,
     fontWeight: 700,
     margin: 0,
+    color: "#e5e7eb",
   },
   version: {
     fontSize: 12,
-    color: "#888",
+    color: "#6b7280",
   },
   statusRow: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     marginBottom: 16,
-    padding: "8px 12px",
-    borderRadius: 6,
-    backgroundColor: "#f5f5f5",
+    padding: "10px 14px",
+    borderRadius: 8,
+    backgroundColor: "rgba(40, 48, 56, 0.7)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    border: "1px solid #3a3f4a",
   },
   dot: {
     width: 8,
@@ -133,28 +165,35 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statusText: {
     fontSize: 13,
+    color: "#9ca3af",
   },
   buttonRow: {
     display: "flex",
-    gap: 8,
+    gap: 10,
   },
-  button: {
+  buttonSettings: {
     flex: 1,
-    padding: "10px 16px",
-    border: "none",
-    borderRadius: 6,
+    padding: "12px 16px",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    transition: "background-color 0.15s",
-  },
-  buttonSettings: {
-    backgroundColor: "#f0f0f0",
-    color: "#333",
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
+    transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
   },
   buttonCapture: {
-    backgroundColor: "#2563eb",
+    flex: 1,
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "#0d9488",
     color: "#fff",
+    transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
   },
 }
 

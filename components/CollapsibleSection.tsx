@@ -3,6 +3,8 @@
  *
  * Reusable collapsible container for Settings sections.
  * Uses CSS Grid animation for smooth, native-height-aware expand/collapse.
+ * 
+ * Updated: Dark Glassmorphism theme (2026-04-20)
  */
 
 import { useState } from "react"
@@ -39,14 +41,14 @@ export function CollapsibleSection({
       padding: "12px 0",
       cursor: "pointer",
       userSelect: "none" as const,
-      borderBottom: "1px solid #e5e7eb",
+      borderBottom: "1px solid #3a3f4a",
     },
     title: {
       fontSize: 14,
       fontWeight: 600,
       textTransform: "uppercase" as const,
       letterSpacing: "0.05em",
-      color: "#374151",
+      color: "#9ca3af",
     },
     arrow: {
       fontSize: 12,

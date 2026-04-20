@@ -7,6 +7,8 @@
  *
  * View switching is triggered by messages from the background service worker
  * (which receives OPEN_SETTINGS / OPEN_CAPTURE from the popup).
+ * 
+ * Updated: Dark Glassmorphism theme (2026-04-20)
  */
 
 import { useEffect, useState, useCallback } from "react"
@@ -253,16 +255,25 @@ function CaptureView({
   return (
     <main style={s.container}>
       <div style={s.header}>
-        <h1 style={s.title}>📸 TV Capture</h1>
-        <button style={s.navButton} onClick={onSettings}>
-          ⚙
+        <h1 style={s.title}>TV Capture</h1>
+        <button 
+          style={s.navButton} 
+          onClick={onSettings}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+          }}
+        >
+          Settings
         </button>
       </div>
 
       {/* Screenshot Preview */}
       <div style={{
         ...s.previewContainer,
-        backgroundColor: screenshotUrl ? "transparent" : "#f5f5f5",
+        backgroundColor: screenshotUrl ? "transparent" : "rgba(40, 48, 56, 0.5)",
         minHeight: screenshotUrl ? "auto" : 200,
       }}>
         {screenshotUrl ? (
@@ -298,7 +309,7 @@ function CaptureView({
           {/* Special Tiles Row */}
           <div style={s.tileRow}>
             <TemplateTile
-              name="✏️ Custom"
+              name="Custom"
               isSelected={isCustom && mode !== "grid"}
               onClick={() => {
                 setIsCustom(true)
@@ -308,7 +319,7 @@ function CaptureView({
               }}
             />
             <TemplateTile
-              name="➕ New Template"
+              name="New Template"
               onClick={() => {
                 setMode("form")
               }}
@@ -342,12 +353,12 @@ function CaptureView({
           {/* Selected Template Info */}
           <div style={s.tileRow}>
             <TemplateTile
-              name={isCustom ? "✏️ Custom" : templates.find((t) => t.id === selectedTemplateId)?.name || ""}
+              name={isCustom ? "Custom" : templates.find((t) => t.id === selectedTemplateId)?.name || ""}
               isSelected={true}
               onClick={() => {}}
             />
             <TemplateTile
-              name="View All ⟩"
+              name="View All"
               onClick={() => {
                 setMode("grid")
                 setSelectedTemplateId(null)
@@ -365,6 +376,16 @@ function CaptureView({
               placeholder="Type your caption..."
               maxLength={1024}
               rows={6}
+              onFocus={(e) => {
+                if (caption.length <= 1024) {
+                  (e.target as HTMLTextAreaElement).style.borderColor = "#0d9488"
+                }
+              }}
+              onBlur={(e) => {
+                if (caption.length <= 1024) {
+                  (e.target as HTMLTextAreaElement).style.borderColor = "#3a3f4a"
+                }
+              }}
             />
             <div style={caption.length <= 1024 ? s.counter : s.counterError}>
               {caption.length}/1024 characters
@@ -392,8 +413,14 @@ function CaptureView({
           <button
             style={s.captureButton}
             onClick={handleCapture}
+            onMouseEnter={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "#14b8a6"
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "#0d9488"
+            }}
           >
-            📷 Capture
+            Capture
           </button>
         )}
 
@@ -411,14 +438,26 @@ function CaptureView({
             <button
               style={s.sendButton}
               onClick={handleSendScreenshotOnly}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#059669"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#10b981"
+              }}
             >
-              📤 Send Screenshot Only
+              Send Screenshot Only
             </button>
             <button
               style={s.cancelButton}
               onClick={handleCancel}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+              }}
             >
-              ✕ Cancel
+              Cancel
             </button>
           </>
         )}
@@ -429,14 +468,30 @@ function CaptureView({
               style={caption.length <= 1024 ? s.sendButton : s.sendButtonDisabled}
               disabled={caption.length > 1024 || captureState === "sending"}
               onClick={handleSendWithCaption}
+              onMouseEnter={(e) => {
+                if (caption.length <= 1024) {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "#059669"
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (caption.length <= 1024) {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "#10b981"
+                }
+              }}
             >
-              {captureState === "sending" ? "Sending..." : "📤 Send"}
+              {captureState === "sending" ? "Sending..." : "Send"}
             </button>
             <button
               style={s.cancelButton}
               onClick={handleCancel}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+              }}
             >
-              ✕ Cancel
+              Cancel
             </button>
           </>
         )}
@@ -455,14 +510,26 @@ function CaptureView({
             <button
               style={s.retryButton}
               onClick={handleRetry}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#d97706"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#f59e0b"
+              }}
             >
-              🔄 Retry
+              Retry
             </button>
             <button
               style={s.cancelButton}
               onClick={handleCancel}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+              }}
             >
-              ✕ Cancel
+              Cancel
             </button>
           </>
         )}
@@ -471,7 +538,7 @@ function CaptureView({
       {/* Error Message */}
       {error && (
         <div style={s.errorMessage}>
-          ✕ {error}
+          {error}
         </div>
       )}
 
@@ -479,8 +546,8 @@ function CaptureView({
       {sendResult && (
         <div style={sendResult.success ? s.sendSuccess : s.sendError}>
           {sendResult.success
-            ? "✓ Screenshot sent to Telegram!"
-            : `✕ ${sendResult.error}`}
+            ? "Screenshot sent to Telegram!"
+            : sendResult.error}
         </div>
       )}
     </main>
@@ -670,7 +737,7 @@ function SettingsView({
   if (!settings) {
     return (
       <main style={s.settingsContainer}>
-        <p>Loading settings...</p>
+        <p style={{ color: "#9ca3af" }}>Loading settings...</p>
       </main>
     )
   }
@@ -681,9 +748,18 @@ function SettingsView({
     <main style={s.settingsContainer}>
       {/* Header */}
       <div style={s.header}>
-        <h1 style={s.title}>⚙ Settings</h1>
-        <button style={s.navButton} onClick={onBack}>
-          ← Back
+        <h1 style={s.title}>Settings</h1>
+        <button 
+          style={s.navButton} 
+          onClick={onBack}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+          }}
+        >
+          Back
         </button>
       </div>
 
@@ -697,6 +773,16 @@ function SettingsView({
             placeholder="e.g. 123456:ABC-DEF..."
             value={settings.telegram.botToken}
             onChange={(e) => updateField("telegram.botToken", e.target.value)}
+            onFocus={(e) => {
+              if (!fieldError("telegram.botToken")) {
+                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+              }
+            }}
+            onBlur={(e) => {
+              if (!fieldError("telegram.botToken")) {
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+              }
+            }}
           />
           {fieldError("telegram.botToken") && (
             <p style={s.errorText}>{fieldError("telegram.botToken").message}</p>
@@ -711,6 +797,16 @@ function SettingsView({
             placeholder="e.g. 987654321"
             value={settings.telegram.chatId}
             onChange={(e) => updateField("telegram.chatId", e.target.value)}
+            onFocus={(e) => {
+              if (!fieldError("telegram.chatId")) {
+                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+              }
+            }}
+            onBlur={(e) => {
+              if (!fieldError("telegram.chatId")) {
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+              }
+            }}
           />
           {fieldError("telegram.chatId") && (
             <p style={s.errorText}>{fieldError("telegram.chatId").message}</p>
@@ -723,6 +819,16 @@ function SettingsView({
             style={testLoading ? s.testButtonDisabled : s.testButton}
             onClick={handleTestMessage}
             disabled={testLoading}
+            onMouseEnter={(e) => {
+              if (!testLoading) {
+                (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!testLoading) {
+                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+              }
+            }}
           >
             {testLoading ? "Sending..." : "Test Connection"}
           </button>
@@ -731,7 +837,7 @@ function SettingsView({
         {/* Test Result Feedback */}
         {testResult && (
           <div style={testResult.success ? s.testSuccess : s.testError}>
-            {testResult.success ? "✓ Test message sent!" : `✕ ${testResult.error}`}
+            {testResult.success ? "Test message sent!" : testResult.error}
           </div>
         )}
       </CollapsibleSection>
@@ -753,7 +859,7 @@ function SettingsView({
           style={s.shortcutLink}
           onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
         >
-          Change shortcut in Chrome settings →
+          Change shortcut in Chrome settings
         </button>
       </CollapsibleSection>
 
@@ -775,7 +881,7 @@ function SettingsView({
             {/* Hint text */}
             {templates.length > 1 && (
               <p style={s.hintText}>
-                💡 Drag and hold template to reorder
+                Drag and hold template to reorder
               </p>
             )}
 
@@ -803,8 +909,14 @@ function SettingsView({
             <button
               style={s.addButton}
               onClick={() => setShowTemplateForm(true)}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+              }}
             >
-              ➕ Add Template
+              Add Template
             </button>
           </>
         )}
@@ -820,13 +932,23 @@ function SettingsView({
         style={saving ? s.saveButtonDisabled : s.saveButton}
         onClick={handleSave}
         disabled={saving}
+        onMouseEnter={(e) => {
+          if (!saving) {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#14b8a6"
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!saving) {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#0d9488"
+          }
+        }}
       >
         {saving ? "Saving..." : "Save Settings"}
       </button>
 
       {/* Feedback */}
       {feedback === "success" && (
-        <div style={s.feedbackSuccess}>✓ Settings saved</div>
+        <div style={s.feedbackSuccess}>Settings saved</div>
       )}
 
       {/* Delete Confirmation Popup */}
@@ -839,12 +961,24 @@ function SettingsView({
               <button
                 style={s.popupCancelButton}
                 onClick={() => setDeleteConfirmId(null)}
+                onMouseEnter={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+                }}
+                onMouseLeave={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+                }}
               >
                 Cancel
               </button>
               <button
                 style={s.popupDeleteButton}
                 onClick={() => handleDeleteTemplate(deleteConfirmId)}
+                onMouseEnter={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "#dc2626"
+                }}
+                onMouseLeave={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "#ef4444"
+                }}
               >
                 Delete
               </button>
@@ -857,7 +991,7 @@ function SettingsView({
 }
 
 // ---------------------------------------------------------------------------
-// Shared styles
+// Shared styles — Dark Glassmorphism Theme
 // ---------------------------------------------------------------------------
 
 const s: Record<string, React.CSSProperties> = {
@@ -867,7 +1001,8 @@ const s: Record<string, React.CSSProperties> = {
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: 14,
-    color: "#1a1a1a",
+    color: "#e5e7eb",
+    backgroundColor: "#1e2028",
     // Flex layout for capture view
     display: "flex",
     flexDirection: "column" as const,
@@ -876,7 +1011,6 @@ const s: Record<string, React.CSSProperties> = {
     // Hide scrollbar completely
     overflowY: "auto" as const,
     scrollbarWidth: "none" as const, // Firefox
-    // Webkit scrollbar hide (applied via inline style hack)
   },
   // Container for settings view (no flex, normal flow)
   settingsContainer: {
@@ -884,7 +1018,10 @@ const s: Record<string, React.CSSProperties> = {
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: 14,
-    color: "#1a1a1a",
+    color: "#e5e7eb",
+    backgroundColor: "#1e2028",
+    minHeight: "100vh",
+    boxSizing: "border-box" as const,
   },
   header: {
     display: "flex",
@@ -897,15 +1034,17 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 18,
     fontWeight: 700,
     margin: 0,
+    color: "#e5e7eb",
   },
   navButton: {
-    background: "none",
-    border: "1px solid #d1d5db",
-    borderRadius: 6,
-    padding: "4px 10px",
+    background: "transparent",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
+    padding: "6px 12px",
     fontSize: 13,
     cursor: "pointer",
-    color: "#555",
+    color: "#9ca3af",
+    transition: "all 150ms",
   },
   // Field styles
   field: { marginBottom: 12 },
@@ -913,26 +1052,31 @@ const s: Record<string, React.CSSProperties> = {
     display: "block",
     fontSize: 13,
     fontWeight: 600,
-    marginBottom: 4,
-    color: "#374151",
+    marginBottom: 6,
+    color: "#9ca3af",
   },
   input: {
     width: "100%",
     boxSizing: "border-box" as const,
-    padding: "8px 10px",
-    border: "1px solid #d1d5db",
-    borderRadius: 6,
+    padding: "10px 12px",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
     fontSize: 14,
     outline: "none",
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
+    transition: "border-color 150ms",
   },
   inputError: {
     width: "100%",
     boxSizing: "border-box" as const,
-    padding: "8px 10px",
+    padding: "10px 12px",
     border: "1px solid #ef4444",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     outline: "none",
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
   },
   errorText: {
     fontSize: 12,
@@ -942,26 +1086,27 @@ const s: Record<string, React.CSSProperties> = {
   // Save button
   saveButton: {
     width: "100%",
-    padding: "10px 16px",
+    padding: "12px 16px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "#2563eb",
+    backgroundColor: "#0d9488",
     color: "#fff",
     marginTop: 8,
+    transition: "background-color 150ms",
   },
   saveButtonDisabled: {
     width: "100%",
-    padding: "10px 16px",
+    padding: "12px 16px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "not-allowed",
-    backgroundColor: "#93c5fd",
-    color: "#fff",
+    backgroundColor: "#134e4a",
+    color: "#6b7280",
     marginTop: 8,
   },
   feedbackSuccess: {
@@ -969,28 +1114,29 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     marginTop: 8,
-    padding: "6px 0",
-    borderRadius: 6,
-    color: "#16a34a",
-    backgroundColor: "#f0fdf4",
+    padding: "8px 0",
+    borderRadius: 8,
+    color: "#10b981",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    border: "1px solid rgba(16, 185, 129, 0.3)",
   },
   // Capture view
   placeholderBox: {
-    border: "2px dashed #d1d5db",
-    borderRadius: 8,
+    border: "2px dashed #3a3f4a",
+    borderRadius: 12,
     padding: 32,
     textAlign: "center" as const,
-    backgroundColor: "#fafafa",
+    backgroundColor: "rgba(40, 48, 56, 0.5)",
   },
   placeholderTitle: {
     fontSize: 14,
     fontWeight: 600,
-    color: "#6b7280",
+    color: "#9ca3af",
     margin: 0,
   },
   placeholderSub: {
     fontSize: 12,
-    color: "#9ca3af",
+    color: "#6b7280",
     margin: "4px 0 0",
   },
   buttonRow: {
@@ -1007,62 +1153,64 @@ const s: Record<string, React.CSSProperties> = {
   },
   testButton: {
     width: "100%",
-    padding: "8px 12px",
-    border: "1px solid #2563eb",
-    borderRadius: 6,
+    padding: "10px 12px",
+    border: "1px solid #0d9488",
+    borderRadius: 8,
     fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "#fff",
-    color: "#2563eb",
+    backgroundColor: "transparent",
+    color: "#14b8a6",
+    transition: "all 150ms",
   },
   testButtonDisabled: {
     width: "100%",
-    padding: "8px 12px",
-    border: "1px solid #93c5fd",
-    borderRadius: 6,
+    padding: "10px 12px",
+    border: "1px solid #134e4a",
+    borderRadius: 8,
     fontSize: 13,
     fontWeight: 600,
     cursor: "not-allowed",
-    backgroundColor: "#f0f9ff",
-    color: "#93c5fd",
+    backgroundColor: "transparent",
+    color: "#6b7280",
   },
   testSuccess: {
     marginTop: 8,
-    padding: "8px 12px",
-    borderRadius: 6,
+    padding: "10px 12px",
+    borderRadius: 8,
     fontSize: 13,
     fontWeight: 500,
     textAlign: "center" as const,
-    backgroundColor: "#f0fdf4",
-    color: "#16a34a",
-    border: "1px solid #22c55e",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    color: "#10b981",
+    border: "1px solid rgba(16, 185, 129, 0.3)",
   },
   testError: {
     marginTop: 8,
-    padding: "8px 12px",
-    borderRadius: 6,
+    padding: "10px 12px",
+    borderRadius: 8,
     fontSize: 13,
     fontWeight: 500,
     textAlign: "center" as const,
-    backgroundColor: "#fef2f2",
-    color: "#dc2626",
-    border: "1px solid #ef4444",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    color: "#ef4444",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
   },
   // Capture view - Preview styles
   previewContainer: {
     width: "100%",
     minHeight: 200,
     marginBottom: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: "hidden" as const,
-    backgroundColor: "#f5f5f5",
     flexShrink: 0,
   },
   previewImage: {
     width: "100%",
     height: "auto",
     display: "block",
+    borderRadius: 12,
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
   },
   // Shortcut documentation styles
   shortcutRow: {
@@ -1073,26 +1221,26 @@ const s: Record<string, React.CSSProperties> = {
   },
   kbd: {
     display: "inline-block",
-    padding: "2px 8px",
+    padding: "4px 10px",
     fontSize: 13,
     fontFamily: "monospace",
-    backgroundColor: "#f3f4f6",
-    border: "1px solid #d1d5db",
-    borderRadius: 4,
-    color: "#374151",
+    backgroundColor: "#252830",
+    border: "1px solid #3a3f4a",
+    borderRadius: 6,
+    color: "#e5e7eb",
   },
   shortcutPlus: {
-    color: "#9ca3af",
+    color: "#6b7280",
     fontSize: 13,
   },
   shortcutLabel: {
     marginLeft: 8,
     fontSize: 13,
-    color: "#6b7280",
+    color: "#9ca3af",
   },
   shortcutHint: {
     fontSize: 12,
-    color: "#9ca3af",
+    color: "#6b7280",
     margin: "0 0 8px",
   },
   shortcutLink: {
@@ -1100,28 +1248,9 @@ const s: Record<string, React.CSSProperties> = {
     border: "none",
     padding: 0,
     fontSize: 12,
-    color: "#2563eb",
+    color: "#14b8a6",
     cursor: "pointer",
     textDecoration: "underline",
-  },
-  // Caption preview
-  captionPreview: {
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 6,
-    backgroundColor: "#f9fafb",
-    border: "1px solid #e5e7eb",
-  },
-  captionText: {
-    fontSize: 13,
-    color: "#374151",
-    margin: 0,
-  },
-  captionHint: {
-    fontSize: 11,
-    color: "#9ca3af",
-    margin: "4px 0 0",
-    fontStyle: "italic" as const,
   },
   // Template grid styles
   templateSection: {
@@ -1157,34 +1286,39 @@ const s: Record<string, React.CSSProperties> = {
     flex: 1,
     width: "100%",
     padding: "12px",
-    border: "1px solid #d1d5db",
-    borderRadius: 6,
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
     fontSize: 14,
     resize: "none" as const, // Auto-resize via flex
     minHeight: 80,
     fontFamily: "inherit",
     boxSizing: "border-box" as const,
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
+    transition: "border-color 150ms",
   },
   textareaError: {
     flex: 1,
     width: "100%",
     padding: "12px",
     border: "1px solid #ef4444",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     resize: "none" as const,
     minHeight: 80,
     fontFamily: "inherit",
     boxSizing: "border-box" as const,
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
   },
   counter: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#6b7280",
     textAlign: "right" as const,
     marginTop: 4,
   },
   counterError: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#ef4444",
     textAlign: "right" as const,
     marginTop: 4,
@@ -1202,125 +1336,123 @@ const s: Record<string, React.CSSProperties> = {
     flex: 1,
     padding: "12px 16px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "#2563eb",
+    backgroundColor: "#0d9488",
     color: "#fff",
+    transition: "background-color 150ms",
   },
   sendButton: {
     flex: 1,
     padding: "12px 16px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "#16a34a",
+    backgroundColor: "#10b981",
     color: "#fff",
+    transition: "background-color 150ms",
   },
   sendButtonDisabled: {
     flex: 1,
     padding: "12px 16px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "not-allowed",
-    backgroundColor: "#86efac",
-    color: "#fff",
+    backgroundColor: "#059669",
+    color: "#6b7280",
   },
   cancelButton: {
     padding: "12px 16px",
-    border: "1px solid #d1d5db",
-    borderRadius: 6,
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "#fff",
-    color: "#6b7280",
+    backgroundColor: "transparent",
+    color: "#9ca3af",
+    transition: "all 150ms",
   },
   retryButton: {
     flex: 1,
     padding: "12px 16px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
     backgroundColor: "#f59e0b",
     color: "#fff",
+    transition: "background-color 150ms",
   },
   buttonLoading: {
     flex: 1,
     padding: "12px 16px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "not-allowed",
-    backgroundColor: "#93c5fd",
-    color: "#fff",
+    backgroundColor: "#134e4a",
+    color: "#6b7280",
   },
   // Messages
   errorMessage: {
     marginTop: 8,
     padding: "10px 12px",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 13,
     fontWeight: 500,
     textAlign: "center" as const,
-    backgroundColor: "#fef2f2",
-    color: "#dc2626",
-    border: "1px solid #ef4444",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    color: "#ef4444",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
   },
   sendSuccess: {
     marginTop: 8,
     padding: "10px 12px",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 13,
     fontWeight: 500,
     textAlign: "center" as const,
-    backgroundColor: "#f0fdf4",
-    color: "#16a34a",
-    border: "1px solid #22c55e",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    color: "#10b981",
+    border: "1px solid rgba(16, 185, 129, 0.3)",
   },
   sendError: {
     marginTop: 8,
     padding: "10px 12px",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 13,
     fontWeight: 500,
     textAlign: "center" as const,
-    backgroundColor: "#fef2f2",
-    color: "#dc2626",
-    border: "1px solid #ef4444",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    color: "#ef4444",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
   },
   // Template styles
   addButton: {
     width: "100%",
-    padding: "10px 16px",
-    border: "1px dashed #2563eb",
-    borderRadius: 6,
+    padding: "12px 16px",
+    border: "1px dashed #0d9488",
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "#eff6ff",
-    color: "#2563eb",
+    backgroundColor: "transparent",
+    color: "#14b8a6",
     marginTop: 8,
+    transition: "all 150ms",
   },
   hintText: {
     fontSize: 12,
     color: "#6b7280",
     margin: "0 0 12px 0",
-    fontStyle: "italic" as const,
-  },
-  dragHint: {
-    fontSize: 12,
-    color: "#9ca3af",
-    textAlign: "center" as const,
-    marginTop: 8,
     fontStyle: "italic" as const,
   },
   // Delete confirmation popup
@@ -1330,29 +1462,32 @@ const s: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,
   },
   popup: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
+    backgroundColor: "#252830",
+    borderRadius: 12,
     padding: 20,
     maxWidth: "90%",
-    width: 260,
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    width: 280,
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+    border: "1px solid #3a3f4a",
   },
   popupTitle: {
     fontSize: 16,
     fontWeight: 600,
     margin: "0 0 8px",
-    color: "#1a1a1a",
+    color: "#e5e7eb",
   },
   popupText: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#9ca3af",
     margin: "0 0 16px",
   },
   popupButtons: {
@@ -1361,25 +1496,27 @@ const s: Record<string, React.CSSProperties> = {
   },
   popupCancelButton: {
     flex: 1,
-    padding: "8px 12px",
-    border: "1px solid #d1d5db",
-    borderRadius: 6,
+    padding: "10px 14px",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "#fff",
-    color: "#6b7280",
+    backgroundColor: "transparent",
+    color: "#9ca3af",
+    transition: "all 150ms",
   },
   popupDeleteButton: {
     flex: 1,
-    padding: "8px 12px",
+    padding: "10px 14px",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
     backgroundColor: "#ef4444",
     color: "#fff",
+    transition: "background-color 150ms",
   },
 }
 

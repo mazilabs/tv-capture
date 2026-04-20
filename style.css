@@ -2,14 +2,45 @@
  * TV Capture — Global Styles
  *
  * Loaded automatically by Plasmo.
+ * 
+ * Updated: 2026-04-20 — Complete scrollbar removal, body/popup fill fix
  */
 
-/* Hide scrollbar completely for sidepanel */
-::-webkit-scrollbar {
-  display: none;
+/* Reset body and html for popup and sidepanel */
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #1e2028;
+  overflow-x: hidden;
 }
 
-/* Firefox scrollbar hide */
+/* Hide scrollbar completely - WebKit browsers (Chrome, Safari) */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+::-webkit-scrollbar-track {
+  display: none !important;
+}
+
+::-webkit-scrollbar-thumb {
+  display: none !important;
+}
+
+/* Hide scrollbar - Firefox */
 * {
-  scrollbar-width: none;
+  scrollbar-width: none !important;
+  scrollbar-color: transparent transparent !important;
+}
+
+/* Hide scrollbar - IE/Edge legacy */
+* {
+  -ms-overflow-style: none !important;
+}
+
+/* Ensure no overflow indicators */
+::selection {
+  background-color: rgba(13, 148, 136, 0.3);
 }
