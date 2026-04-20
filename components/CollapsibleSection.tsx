@@ -17,6 +17,9 @@ type CollapsibleSectionProps = {
   title: string
   defaultOpen?: boolean
   children: React.ReactNode
+  /** Optional info icon with tooltip and click handler */
+  infoTooltip?: string
+  infoOnClick?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -27,6 +30,8 @@ export function CollapsibleSection({
   title,
   defaultOpen = false,
   children,
+  infoTooltip,
+  infoOnClick,
 }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
@@ -43,12 +48,23 @@ export function CollapsibleSection({
       userSelect: "none" as const,
       borderBottom: "1px solid #3a3f4a",
     },
+    titleRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+    },
     title: {
       fontSize: 14,
       fontWeight: 600,
       textTransform: "uppercase" as const,
       letterSpacing: "0.05em",
       color: "#9ca3af",
+    },
+    infoIcon: {
+      fontSize: 14,
+      color: "#6b7280",
+      cursor: "pointer",
+      transition: "color 150ms",
     },
     arrow: {
       fontSize: 12,
@@ -76,12 +92,34 @@ export function CollapsibleSection({
 
   return (
     <div style={styles.container}>
-      <div
-        style={styles.header}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <span style={styles.title}>{title}</span>
-        <span style={styles.arrow}>▼</span>
+      <div style={styles.header}>
+        <div style={styles.titleRow}>
+          <span style={styles.title}>{title}</span>
+          {infoTooltip && (
+            <span
+              style={styles.infoIcon}
+              title={infoTooltip}
+              onClick={(e) => {
+                e.stopPropagation()
+                infoOnClick?.()
+              }}
+              onMouseEnter={(e) => {
+                (e.target as HTMLElement).style.color = "#14b8a6"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLElement).style.color = "#6b7280"
+              }}
+            >
+              ℹ️
+            </span>
+          )}
+        </div>
+        <span
+          style={styles.arrow}
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          ▼
+        </span>
       </div>
       {/* Grid container enables smooth height animation */}
       <div style={styles.gridContainer}>

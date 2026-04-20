@@ -28,18 +28,6 @@ node scripts/generate-test-templates.js
 
 ---
 
-## pack-crx.js
+*Last updated: 2026-04-20*
 
-Packages the extension as a `.crx` file for distribution.
-
-**Usage:**
-
-```bash
-pnpm build:crx
-```
-
-This runs after `plasmo build` and creates a `.crx` file in the build directory.
-
----
-
-*Last updated: 2026-04-19*
+**Note:** `pack-crx.js` was archived - Chrome Web Store distribution no longer needs `.crx` packaging.

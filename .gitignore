@@ -16,6 +16,9 @@ build/
 dist/
 .plasmo/
 
+# extension package (for CWS upload)
+*.zip
+
 # extension signing key - NEVER commit this
 key.pem
 

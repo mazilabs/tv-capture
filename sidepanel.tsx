@@ -51,7 +51,7 @@ import { TemplateTile } from "./components/TemplateTile"
 // Types
 // ---------------------------------------------------------------------------
 
-type View = "capture" | "settings"
+type View = "capture" | "settings" | "help"
 
 // ---------------------------------------------------------------------------
 // Component
@@ -72,7 +72,9 @@ function SidePanel() {
   }, [])
 
   return view === "settings" ? (
-    <SettingsView onBack={() => setView("capture")} />
+    <SettingsView onBack={() => setView("capture")} onHelp={() => setView("help")} />
+  ) : view === "help" ? (
+    <HelpView onBack={() => setView("settings")} />
   ) : (
     <CaptureView onSettings={() => setView("settings")} />
   )
@@ -533,8 +535,10 @@ function CaptureView({
 
 function SettingsView({
   onBack,
+  onHelp,
 }: {
   onBack: () => void
+  onHelp: () => void
 }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [errors, setErrors] = useState<ValidationError[]>([])
@@ -743,7 +747,10 @@ function SettingsView({
       </div>
 
       {/* Telegram Section */}
-      <CollapsibleSection title="Telegram" defaultOpen={true}>
+      <CollapsibleSection
+        title="Telegram"
+        defaultOpen={true}
+      >
         <div style={s.field}>
           <label style={s.label}>Bot Token</label>
           <input
@@ -795,6 +802,22 @@ function SettingsView({
             <p style={s.errorText}>{fieldError("telegram.chatId").message}</p>
           )}
         </div>
+
+        {/* Help Link */}
+        <span
+          style={s.helpLink}
+          onClick={onHelp}
+          onMouseEnter={(e) => {
+            (e.target as HTMLElement).style.color = "#9ca3af"
+            ;(e.target as HTMLElement).style.textDecorationColor = "#6b7280"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLElement).style.color = "#6b7280"
+            ;(e.target as HTMLElement).style.textDecorationColor = "#4b5563"
+          }}
+        >
+          How to get Bot Token and Chat ID
+        </span>
 
         {/* Test Connection Button with Inline Feedback */}
         <div style={s.testButtonRow}>
@@ -962,6 +985,164 @@ function SettingsView({
 }
 
 // ---------------------------------------------------------------------------
+// Help View — Telegram Setup Guide
+// ---------------------------------------------------------------------------
+
+function HelpView({
+  onBack,
+}: {
+  onBack: () => void
+}) {
+  return (
+    <main style={s.settingsContainer}>
+      {/* Header */}
+      <div style={s.header}>
+        <h1 style={s.title}>Telegram Setup Guide</h1>
+        <button 
+          style={s.closeButton} 
+          onClick={onBack}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Help Content */}
+      <div style={s.helpContent}>
+        {/* Step 1 */}
+        <div style={s.helpSection}>
+          <h2 style={s.helpSectionTitle}>STEP 1: Create Your Bot</h2>
+          <ol style={s.helpList}>
+            <li>Open Telegram (app or web)</li>
+            <li>Search for <strong>@BotFather</strong> (official Telegram bot)</li>
+            <li>Send: <code style={s.code}>/start</code></li>
+            <li>Send: <code style={s.code}>/newbot</code></li>
+            <li>Enter a name for your bot (e.g. "TV Capture")</li>
+            <li>Enter a username ending with "bot"<br/>
+              <span style={s.helpHint}>(e.g. "my_trading_bot" or "tvcapture_max_bot")</span>
+            </li>
+            <li><span style={s.helpSuccess}>✅ DONE!</span> BotFather returns your Bot Token</li>
+          </ol>
+          <div style={s.helpTip}>
+            <p><strong>📝 Your token looks like:</strong></p>
+            <code style={s.codeBlock}>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>
+          </div>
+          <p style={s.helpWarning}>
+            ⚠️ Keep this token secret! If leaked, use <code style={s.code}>/revoke</code> in @BotFather
+          </p>
+        </div>
+
+        {/* Step 2 */}
+        <div style={s.helpSection}>
+          <h2 style={s.helpSectionTitle}>STEP 2: Get Your Chat ID</h2>
+          <p style={s.helpText}>Choose ONE method below:</p>
+
+          {/* Option A */}
+          <div style={s.helpSubsection}>
+            <h3 style={s.helpSubsectionTitle}>OPTION A: Personal Chat (Simplest)</h3>
+            <ol style={s.helpList}>
+              <li>In Telegram, search for your new bot</li>
+              <li>Open the chat and send: <code style={s.code}>/start</code></li>
+              <li>Open this URL in your browser:<br/>
+                <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code><br/>
+                <span style={s.helpHint}>(Replace {'<TOKEN>'} with your Bot Token)</span>
+              </li>
+              <li>You'll see JSON like this:</li>
+            </ol>
+            <pre style={s.jsonBlock}>{`{
+  "ok": true,
+  "result": [{
+    "message": {
+      "chat": {
+        "id": 123456789
+      }
+    }
+  }]
+}`}</pre>
+            <p style={s.helpText}>
+              <strong>5. Copy the "id" number</strong> (positive, e.g. 123456789)
+            </p>
+          </div>
+
+          {/* Option B */}
+          <div style={s.helpSubsection}>
+            <h3 style={s.helpSubsectionTitle}>OPTION B: Group Chat</h3>
+            <ol style={s.helpList}>
+              <li>Create a group in Telegram (or use existing)</li>
+              <li>Add your bot to the group<br/>
+                <span style={s.helpHint}>(Search for your bot's username, click "Add to Group")</span>
+              </li>
+            </ol>
+            <div style={s.helpWarning}>
+              <p><strong>⚠️ IMPORTANT: Disable Privacy Mode FIRST!</strong></p>
+            </div>
+            <ol style={s.helpList} start={3}>
+              <li>Open @BotFather</li>
+              <li>Send: <code style={s.code}>/mybots</code></li>
+              <li>Select your bot</li>
+              <li>Tap: Bot Settings → Group Privacy → <strong>DISABLE</strong></li>
+              <li>Confirmation: "Group privacy is disabled"</li>
+            </ol>
+            <ol style={s.helpList} start={8}>
+              <li>Go to your group and send any message (e.g. "test")</li>
+              <li>Open this URL in your browser:<br/>
+                <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code>
+              </li>
+              <li>Find the group chat ID in the JSON:</li>
+            </ol>
+            <pre style={s.jsonBlock}>{`"chat": {
+  "id": -1001234567890
+}`}</pre>
+            <p style={s.helpText}>
+              <strong>11. Copy the ID</strong> (NEGATIVE number, starts with -100)
+            </p>
+          </div>
+        </div>
+
+        {/* Step 3 */}
+        <div style={s.helpSection}>
+          <h2 style={s.helpSectionTitle}>STEP 3: Configure TV Capture</h2>
+          <ol style={s.helpList}>
+            <li>Copy your Bot Token into the <strong>"Bot Token"</strong> field</li>
+            <li>Copy your Chat ID into the <strong>"Chat ID"</strong> field</li>
+            <li>Click <strong>"Test Connection"</strong> to verify</li>
+          </ol>
+        </div>
+
+        {/* Troubleshooting */}
+        <div style={s.helpSection}>
+          <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
+          <div style={s.helpTroubleshoot}>
+            <p><strong>❌ "Unauthorized" or "Invalid token"</strong></p>
+            <p style={s.helpHint}>→ Token is wrong. Copy again from @BotFather</p>
+          </div>
+          <div style={s.helpTroubleshoot}>
+            <p><strong>❌ "Chat not found"</strong></p>
+            <p style={s.helpHint}>→ You never sent /start to your bot, or Chat ID is wrong</p>
+          </div>
+          <div style={s.helpTroubleshoot}>
+            <p><strong>❌ getUpdates shows empty result: []</strong></p>
+            <p style={s.helpHint}>→ For groups: Privacy Mode is still enabled</p>
+            <p style={s.helpHint}>→ Disable it in @BotFather (see Step 2, Option B)</p>
+            <p style={s.helpHint}>→ Then send another message in the group</p>
+          </div>
+          <div style={s.helpTroubleshoot}>
+            <p><strong>❌ Messages not arriving</strong></p>
+            <p style={s.helpHint}>→ Check token and chat ID are correct</p>
+            <p style={s.helpHint}>→ Make sure you sent /start to the bot at least once</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Shared styles — Dark Glassmorphism Theme
 // ---------------------------------------------------------------------------
 
@@ -1082,7 +1263,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   // Test message styles - Button with inline feedback
   testButtonRow: {
-    marginTop: 8,
+    marginTop: 0,
     marginBottom: 12,
   },
   testButton: {
@@ -1451,6 +1632,149 @@ const s: Record<string, React.CSSProperties> = {
     textDecoration: "underline" as const,
     textDecorationColor: "#4b5563",
     letterSpacing: "0.02em",
+  },
+  // Help link (under inputs) - simple text link
+  helpLink: {
+    display: "block",
+    fontSize: 12,
+    color: "#6b7280",
+    cursor: "pointer",
+    textDecoration: "underline" as const,
+    textDecorationColor: "#4b5563",
+    marginTop: 8,
+    marginBottom: 16,
+    transition: "color 150ms, text-decoration-color 150ms",
+  },
+  // Close button (X) for help view
+  closeButton: {
+    background: "transparent",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
+    padding: "6px 10px",
+    fontSize: 14,
+    cursor: "pointer",
+    color: "#9ca3af",
+    transition: "all 150ms",
+    fontWeight: 600,
+  },
+  // Help view styles
+  helpContent: {
+    marginTop: 8,
+  },
+  helpBox: {
+    backgroundColor: "rgba(13, 148, 136, 0.08)",
+    border: "1px solid rgba(13, 148, 136, 0.2)",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  helpBoxTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#14b8a6",
+    margin: "0 0 8px",
+  },
+  helpBoxText: {
+    fontSize: 13,
+    color: "#9ca3af",
+    margin: "4px 0",
+  },
+  helpSection: {
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottom: "1px solid #2c3038",
+  },
+  helpSectionTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#e5e7eb",
+    margin: "0 0 12px",
+    letterSpacing: "0.02em",
+  },
+  helpSubsection: {
+    marginTop: 12,
+    paddingLeft: 8,
+    borderLeft: "2px solid #3a3f4a",
+  },
+  helpSubsectionTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#9ca3af",
+    margin: "0 0 8px",
+  },
+  helpText: {
+    fontSize: 13,
+    color: "#d1d5db",
+    margin: "8px 0",
+    lineHeight: 1.5,
+  },
+  helpList: {
+    fontSize: 13,
+    color: "#d1d5db",
+    margin: "8px 0",
+    paddingLeft: 20,
+    lineHeight: 1.7,
+  },
+  helpHint: {
+    fontSize: 12,
+    color: "#6b7280",
+    display: "block",
+    marginTop: 2,
+    marginLeft: 4,
+  },
+  helpSuccess: {
+    color: "#10b981",
+    fontWeight: 600,
+  },
+  helpWarning: {
+    fontSize: 12,
+    color: "#f59e0b",
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    border: "1px solid rgba(245, 158, 11, 0.2)",
+    borderRadius: 6,
+    padding: "8px 10px",
+    margin: "8px 0",
+  },
+  helpTip: {
+    backgroundColor: "rgba(59, 130, 246, 0.08)",
+    border: "1px solid rgba(59, 130, 246, 0.2)",
+    borderRadius: 6,
+    padding: "8px 10px",
+    margin: "8px 0",
+  },
+  helpTroubleshoot: {
+    marginBottom: 12,
+  },
+  code: {
+    fontFamily: "monospace",
+    backgroundColor: "#2c3038",
+    padding: "2px 6px",
+    borderRadius: 4,
+    fontSize: 12,
+    color: "#a5b4fc",
+  },
+  codeBlock: {
+    display: "block",
+    fontFamily: "monospace",
+    backgroundColor: "#2c3038",
+    padding: "6px 10px",
+    borderRadius: 6,
+    fontSize: 12,
+    color: "#a5b4fc",
+    margin: "6px 0",
+    wordBreak: "break-all" as const,
+  },
+  jsonBlock: {
+    fontFamily: "monospace",
+    fontSize: 11,
+    backgroundColor: "#1e2028",
+    border: "1px solid #3a3f4a",
+    borderRadius: 6,
+    padding: 10,
+    margin: "8px 0",
+    color: "#9ca3af",
+    overflow: "auto" as const,
+    whiteSpace: "pre" as const,
   },
 }
 
