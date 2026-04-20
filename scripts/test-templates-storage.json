@@ -1,0 +1,155 @@
+{
+  "idCounter": 26,
+  "templates": [
+    {
+      "id": 1,
+      "name": "📋 Template 1",
+      "body": "Trading setup #1\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 1 content here.",
+      "order": 0
+    },
+    {
+      "id": 2,
+      "name": "📋 Template 2",
+      "body": "Trading setup #2\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 2 content here.",
+      "order": 1
+    },
+    {
+      "id": 3,
+      "name": "📋 Template 3",
+      "body": "Trading setup #3\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 3 content here.",
+      "order": 2
+    },
+    {
+      "id": 4,
+      "name": "📋 Template 4",
+      "body": "Trading setup #4\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 4 content here.",
+      "order": 3
+    },
+    {
+      "id": 5,
+      "name": "📋 Template 5",
+      "body": "Trading setup #5\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 5 content here.",
+      "order": 4
+    },
+    {
+      "id": 6,
+      "name": "📋 Template 6",
+      "body": "Trading setup #6\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 6 content here.",
+      "order": 5
+    },
+    {
+      "id": 7,
+      "name": "📋 Template 7",
+      "body": "Trading setup #7\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 7 content here.",
+      "order": 6
+    },
+    {
+      "id": 8,
+      "name": "📋 Template 8",
+      "body": "Trading setup #8\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 8 content here.",
+      "order": 7
+    },
+    {
+      "id": 9,
+      "name": "📋 Template 9",
+      "body": "Trading setup #9\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 9 content here.",
+      "order": 8
+    },
+    {
+      "id": 10,
+      "name": "📋 Template 10",
+      "body": "Trading setup #10\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 10 content here.",
+      "order": 9
+    },
+    {
+      "id": 11,
+      "name": "📋 Template 11",
+      "body": "Trading setup #11\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 11 content here.",
+      "order": 10
+    },
+    {
+      "id": 12,
+      "name": "📋 Template 12",
+      "body": "Trading setup #12\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 12 content here.",
+      "order": 11
+    },
+    {
+      "id": 13,
+      "name": "📋 Template 13",
+      "body": "Trading setup #13\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 13 content here.",
+      "order": 12
+    },
+    {
+      "id": 14,
+      "name": "📋 Template 14",
+      "body": "Trading setup #14\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 14 content here.",
+      "order": 13
+    },
+    {
+      "id": 15,
+      "name": "📋 Template 15",
+      "body": "Trading setup #15\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 15 content here.",
+      "order": 14
+    },
+    {
+      "id": 16,
+      "name": "📋 Template 16",
+      "body": "Trading setup #16\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 16 content here.",
+      "order": 15
+    },
+    {
+      "id": 17,
+      "name": "📋 Template 17",
+      "body": "Trading setup #17\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 17 content here.",
+      "order": 16
+    },
+    {
+      "id": 18,
+      "name": "📋 Template 18",
+      "body": "Trading setup #18\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 18 content here.",
+      "order": 17
+    },
+    {
+      "id": 19,
+      "name": "📋 Template 19",
+      "body": "Trading setup #19\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 19 content here.",
+      "order": 18
+    },
+    {
+      "id": 20,
+      "name": "📋 Template 20",
+      "body": "Trading setup #20\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 20 content here.",
+      "order": 19
+    },
+    {
+      "id": 21,
+      "name": "📋 Template 21",
+      "body": "Trading setup #21\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 21 content here.",
+      "order": 20
+    },
+    {
+      "id": 22,
+      "name": "📋 Template 22",
+      "body": "Trading setup #22\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 22 content here.",
+      "order": 21
+    },
+    {
+      "id": 23,
+      "name": "📋 Template 23",
+      "body": "Trading setup #23\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 23 content here.",
+      "order": 22
+    },
+    {
+      "id": 24,
+      "name": "📋 Template 24",
+      "body": "Trading setup #24\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 24 content here.",
+      "order": 23
+    },
+    {
+      "id": 25,
+      "name": "📋 Template 25",
+      "body": "Trading setup #25\n\nEntry: XXX\nStop: XXX\nTarget: XXX\n\nNotes: Message 25 content here.",
+      "order": 24
+    }
+  ]
+}
