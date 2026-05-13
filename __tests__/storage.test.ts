@@ -1,7 +1,8 @@
 /**
  * Unit tests for lib-storage.ts
  *
- * Tests validation logic, defaults, merge behavior, and isConfigured().
+ * Tests validation logic, defaults, merge behavior, isConfigured(),
+ * and settings migration (0.1.0 → 0.2.0).
  * The chrome.storage.local API is mocked globally.
  */
 import { describe, it, expect, beforeEach } from "vitest"
@@ -14,15 +15,16 @@ import {
   clearSettings,
 } from "../lib-storage"
 import type { Settings } from "../lib-storage"
+import { loadChannelStorage } from "../lib-channels"
 
 // ---------------------------------------------------------------------------
 // Mock chrome.storage.local
 // ---------------------------------------------------------------------------
 
-const storage: Record<string, unknown> = {}
-
 beforeEach(() => {
-  for (const key in storage) delete storage[key]
+  // Fresh storage object for each test — prevents state bleeding between tests
+  // since mock closures capture this specific local variable
+  const testStorage: Record<string, unknown> = {}
 
   ;(globalThis as any).chrome = {
     storage: {
@@ -31,17 +33,17 @@ beforeEach(() => {
           const keyList = Array.isArray(keys) ? keys : [keys]
           const result: Record<string, unknown> = {}
           for (const k of keyList) {
-            if (k in storage) result[k] = storage[k]
+            if (k in testStorage) result[k] = testStorage[k]
           }
           return Promise.resolve(result)
         },
         set(items: Record<string, unknown>) {
-          Object.assign(storage, items)
+          Object.assign(testStorage, items)
           return Promise.resolve()
         },
         remove(keys: string | string[]) {
           const keyList = Array.isArray(keys) ? keys : [keys]
-          for (const k of keyList) delete storage[k]
+          for (const k of keyList) delete testStorage[k]
           return Promise.resolve()
         },
       },
@@ -54,7 +56,8 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("DEFAULT_SETTINGS", () => {
-  it("has all expected keys", () => {
+  it("has all expected keys including version", () => {
+    expect(DEFAULT_SETTINGS).toHaveProperty("version", 2)
     expect(DEFAULT_SETTINGS).toHaveProperty("telegram.botToken", "")
     expect(DEFAULT_SETTINGS).toHaveProperty("telegram.chatId", "")
     expect(DEFAULT_SETTINGS).toHaveProperty("capture.delay", 200)
@@ -248,5 +251,142 @@ describe("clearSettings", () => {
     })
     await clearSettings()
     expect(await loadSettings()).toEqual(DEFAULT_SETTINGS)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Migration (0.1.0 → 0.2.0)
+// ---------------------------------------------------------------------------
+
+describe("migration", () => {
+  it("M1: fresh install returns DEFAULT_SETTINGS with version 2, no channels", async () => {
+    const settings = await loadSettings()
+
+    expect(settings.version).toBe(2)
+    expect(settings.telegram).toEqual({ botToken: "", chatId: "" })
+    expect(settings.capture).toEqual({ delay: 200 })
+    expect(settings.ai).toEqual({ apiKey: "", model: "" })
+
+    // No channels should be created on fresh install
+    const channelStorage = await loadChannelStorage()
+    expect(channelStorage.channels).toHaveLength(0)
+  })
+
+  it("M2: 0.1.0 format with configured telegram creates a channel", async () => {
+    // Simulate 0.1.0 stored data: no version, no capture, no ai
+    await chrome.storage.local.set({
+      "tv-capture-settings": {
+        telegram: { botToken: "123456:ABC-DEF1234", chatId: "987654321" },
+      },
+    })
+
+    const settings = await loadSettings()
+
+    expect(settings.version).toBe(2)
+    expect(settings.telegram.botToken).toBe("123456:ABC-DEF1234")
+    expect(settings.telegram.chatId).toBe("987654321")
+
+    // A channel should have been created from migration
+    const channelStorage = await loadChannelStorage()
+    expect(channelStorage.channels).toHaveLength(1)
+    expect(channelStorage.channels[0].credentials).toEqual({
+      type: "telegram",
+      botToken: "123456:ABC-DEF1234",
+      chatId: "987654321",
+    })
+  })
+
+  it("M3: 0.1.0 format with empty telegram does not create a channel", async () => {
+    // Simulate 0.1.0 stored data with empty telegram
+    await chrome.storage.local.set({
+      "tv-capture-settings": {
+        telegram: { botToken: "", chatId: "" },
+      },
+    })
+
+    const settings = await loadSettings()
+
+    expect(settings.version).toBe(2)
+
+    // No channel should be created for empty telegram config
+    const channelStorage = await loadChannelStorage()
+    expect(channelStorage.channels).toHaveLength(0)
+  })
+
+  it("M4: idempotency — second loadSettings call does not duplicate", async () => {
+    // Set up 0.1.0 data
+    await chrome.storage.local.set({
+      "tv-capture-settings": {
+        telegram: { botToken: "123:ABC", chatId: "456" },
+      },
+    })
+
+    // First call — migration fires
+    await loadSettings()
+
+    // Second call — migration should NOT fire
+    await loadSettings()
+
+    // Check only 1 channel was created
+    const channelStorage = await loadChannelStorage()
+    expect(channelStorage.channels).toHaveLength(1)
+  })
+
+  it("M5: version 2 already set does not trigger migration", async () => {
+    // Set up data that already has version: 2
+    await chrome.storage.local.set({
+      "tv-capture-settings": {
+        version: 2,
+        telegram: { botToken: "123:ABC", chatId: "456" },
+        capture: { delay: 200 },
+        ai: { apiKey: "", model: "" },
+      },
+    })
+
+    await loadSettings()
+
+    // No channel should be created since version is already 2
+    const channelStorage = await loadChannelStorage()
+    expect(channelStorage.channels).toHaveLength(0)
+  })
+
+  it("M6: migration preserves other settings fields", async () => {
+    // Set up 0.1.0 data with only telegram config
+    await chrome.storage.local.set({
+      "tv-capture-settings": {
+        telegram: { botToken: "123:ABC", chatId: "456" },
+      },
+    })
+
+    const settings = await loadSettings()
+
+    // capture and ai fields should be preserved from defaults
+    expect(settings.capture).toEqual({ delay: 200 })
+    expect(settings.ai).toEqual({ apiKey: "", model: "" })
+  })
+
+  it("M7: migrated channel has correct hardcoded fields", async () => {
+    // Set up 0.1.0 data
+    await chrome.storage.local.set({
+      "tv-capture-settings": {
+        telegram: { botToken: "999:XYZ", chatId: "-1001234567890" },
+      },
+    })
+
+    await loadSettings()
+
+    const channelStorage = await loadChannelStorage()
+    const channel = channelStorage.channels[0]
+
+    expect(channel.internalId).toBe("tg-migrated-channel")
+    expect(channel.displayName).toBe("TG: Migrated Channel")
+    expect(channel.type).toBe("telegram")
+    expect(channel.name).toBe("Migrated Channel")
+    expect(channel.order).toBe(0)
+    expect(channel.credentials).toEqual({
+      type: "telegram",
+      botToken: "999:XYZ",
+      chatId: "-1001234567890",
+    })
   })
 })

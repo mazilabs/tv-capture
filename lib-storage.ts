@@ -8,9 +8,17 @@
 // ---------------------------------------------------------------------------
 
 export type Settings = {
+  version?: number
   telegram: {
     botToken: string
     chatId: string
+  }
+  capture: {
+    delay: number
+  }
+  ai: {
+    apiKey: string
+    model: string
   }
 }
 
@@ -24,13 +32,20 @@ export type ValidationError = {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_SETTINGS: Settings = {
-  telegram: {
-    botToken: "",
-    chatId: "",
-  },
+  version: 2,
+  telegram: { botToken: "", chatId: "" },
+  capture: { delay: 200 },
+  ai: { apiKey: "", model: "" },
 }
 
 const STORAGE_KEY = "tv-capture-settings"
+
+/**
+ * Current settings schema version.
+ * undefined / missing = 0.1.0 format (no version field).
+ * 2 = 0.2.0 format (channels-based).
+ */
+const CURRENT_VERSION = 2
 
 // ---------------------------------------------------------------------------
 // Storage helpers (using raw chrome.storage.local)
@@ -39,12 +54,30 @@ const STORAGE_KEY = "tv-capture-settings"
 /**
  * Load settings from chrome.storage.local.
  * Merges with defaults so new fields always have a value.
+ * Auto-migrates from 0.1.0 format (no version field) to 0.2.0.
  */
 export async function loadSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEY)
   const raw = result[STORAGE_KEY]
-  if (!raw) return { ...DEFAULT_SETTINGS }
-  return { ...DEFAULT_SETTINGS, ...raw } as Settings
+
+  if (!raw) {
+    return { ...DEFAULT_SETTINGS }
+  }
+
+  const settings: Settings = { ...DEFAULT_SETTINGS, ...raw } as Settings
+
+  // Check raw stored version (not settings.version, which is masked by
+  // DEFAULT_SETTINGS.version = 2 via the spread merge above).
+  // When raw has no version field, raw.version is explicitly undefined,
+  // indicating 0.1.0 format that needs migration.
+  const storedVersion = (raw as Record<string, unknown>).version as
+    | number
+    | undefined
+  if (storedVersion === undefined || storedVersion < CURRENT_VERSION) {
+    await migrateToV2(settings)
+  }
+
+  return settings
 }
 
 /**
@@ -59,6 +92,54 @@ export async function saveSettings(settings: Settings): Promise<void> {
  */
 export async function clearSettings(): Promise<void> {
   await chrome.storage.local.remove(STORAGE_KEY)
+}
+
+// ---------------------------------------------------------------------------
+// Migration
+// ---------------------------------------------------------------------------
+
+/**
+ * Migrate settings from 0.1.0 to 0.2.0 format.
+ * Creates a Telegram channel from existing telegram config.
+ * Idempotent: guarded by version field check in loadSettings().
+ * Uses dynamic import to avoid circular dependency with lib-channels.
+ */
+async function migrateToV2(settings: Settings): Promise<void> {
+  // Check if old telegram config has data worth migrating
+  const hasTelegram =
+    settings.telegram?.botToken?.trim().length > 0 &&
+    settings.telegram?.chatId?.trim().length > 0
+
+  if (hasTelegram) {
+    // Import dynamically to avoid circular dependency at module level
+    const { loadChannelStorage, saveChannelStorage } = await import(
+      "./lib-channels"
+    )
+
+    const storage = await loadChannelStorage()
+
+    // Create migrated channel
+    storage.channels.push({
+      id: storage.idCounter,
+      internalId: "tg-migrated-channel",
+      type: "telegram",
+      name: "Migrated Channel",
+      displayName: "TG: Migrated Channel",
+      credentials: {
+        type: "telegram",
+        botToken: settings.telegram.botToken.trim(),
+        chatId: settings.telegram.chatId.trim(),
+      },
+      order: storage.channels.length,
+    })
+    storage.idCounter++
+
+    await saveChannelStorage(storage)
+  }
+
+  // Mark as migrated
+  settings.version = CURRENT_VERSION
+  await saveSettings(settings)
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +195,15 @@ export function validateSettings(settings: Settings): ValidationError[] {
         message: "Chat ID must be a number (or negative number for groups).",
       })
     }
+  }
+
+  // Capture: delay validation
+  const delay = settings.capture?.delay
+  if (delay !== undefined && (Number.isNaN(delay) || delay < 50 || delay > 2000)) {
+    errors.push({
+      field: "capture.delay",
+      message: "Capture delay must be between 50 and 2000 milliseconds.",
+    })
   }
 
   return errors

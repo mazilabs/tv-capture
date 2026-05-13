@@ -52,9 +52,23 @@ export async function loadTemplateStorage(): Promise<TemplateStorage> {
   const raw = result[STORAGE_KEY]
 
   if (!raw) {
-    // First time: initialize with defaults
-    await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STORAGE })
-    return { ...DEFAULT_STORAGE }
+    // Always create a fresh storage object with a new templates array.
+    // Using DEFAULT_STORAGE directly or { ...DEFAULT_STORAGE } would share
+    // the templates array by reference (shallow spread), causing mutations
+    // to leak into the module-level constant.
+    const fresh: TemplateStorage = {
+      idCounter: 2,
+      templates: [
+        {
+          id: 1,
+          name: "📝 Default",
+          body: "📸 Setup captured from TradingView",
+          order: 0,
+        },
+      ],
+    }
+    await chrome.storage.local.set({ [STORAGE_KEY]: fresh })
+    return fresh
   }
 
   return raw as TemplateStorage

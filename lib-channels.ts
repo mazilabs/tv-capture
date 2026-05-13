@@ -1,0 +1,370 @@
+/**
+ * TV Capture — Channel Storage Layer
+ *
+ * Manages output channels (Telegram, Discord, future platforms).
+ * Channels are stored in chrome.storage.local under key "tv-capture-channels".
+ * Pattern follows lib-templates.ts (idCounter + array + order).
+ */
+
+// ---------------------------------------------------------------------------
+// Platform Types
+// ---------------------------------------------------------------------------
+
+/** Supported platform types. Extend this union to add new platforms. */
+export type ChannelType = "telegram" | "discord"
+
+/** Display prefix per platform type. */
+export const CHANNEL_PREFIX: Record<ChannelType, string> = {
+  telegram: "TG",
+  discord: "DC",
+}
+
+/** Internal ID prefix per platform type. */
+const INTERNAL_ID_PREFIX: Record<ChannelType, string> = {
+  telegram: "tg",
+  discord: "dc",
+}
+
+// ---------------------------------------------------------------------------
+// Credential Types (Discriminated Union)
+// ---------------------------------------------------------------------------
+
+/**
+ * Telegram credentials — Bot Token + Chat ID.
+ * Required for Telegram Bot API sendMessage/sendPhoto.
+ */
+export type TelegramCredentials = {
+  type: "telegram"
+  botToken: string
+  chatId: string
+}
+
+/**
+ * Discord credentials — Webhook URL only.
+ * The webhook URL embeds channel ID and authentication token.
+ */
+export type DiscordCredentials = {
+  type: "discord"
+  webhookUrl: string
+}
+
+/**
+ * Discriminated union of platform-specific credentials.
+ * Narrow with: if (credentials.type === "telegram") { ... }
+ *
+ * To add a new platform:
+ * 1. Define a new credential type (e.g., SlackCredentials)
+ * 2. Add it to this union
+ * 3. Add the platform to ChannelType
+ */
+export type ChannelCredentials = TelegramCredentials | DiscordCredentials
+
+// ---------------------------------------------------------------------------
+// Channel Type
+// ---------------------------------------------------------------------------
+
+/**
+ * A single output channel (Telegram group, Discord channel, etc.).
+ */
+export type Channel = {
+  /** Auto-incremented numeric ID. Never reused after deletion. */
+  id: number
+  /** Machine-readable identifier, e.g., "tg-main-trading-group". */
+  internalId: string
+  /** Platform type — determines credential shape and send logic. */
+  type: ChannelType
+  /** User-defined name, e.g., "Main Trading Group". */
+  name: string
+  /** UI display name, e.g., "TG: Main Trading Group". Auto-computed. */
+  displayName: string
+  /** Platform-specific credentials (discriminated by type field). */
+  credentials: ChannelCredentials
+  /** Sort order (0-based). Updated on drag & drop reorder. */
+  order: number
+}
+
+/**
+ * Update payload for updateChannel().
+ * Only name and credentials can change. Type is immutable.
+ */
+export type ChannelUpdate = {
+  name?: string
+  credentials?: ChannelCredentials
+}
+
+// ---------------------------------------------------------------------------
+// Storage Type
+// ---------------------------------------------------------------------------
+
+/** Storage wrapper for channels (mirrors TemplateStorage pattern). */
+export type ChannelStorage = {
+  /** Next ID to assign. Incremented on create, never decremented. */
+  idCounter: number
+  /** All channels. */
+  channels: Channel[]
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const STORAGE_KEY = "tv-capture-channels"
+
+/**
+ * Creates a fresh copy of the default channel storage.
+ * Must be called instead of spreading the const directly, because
+ * `channels` is an array (reference type) — a shallow spread would
+ * share the array reference and cause state bleeding across tests.
+ */
+function createDefaultChannelStorage(): ChannelStorage {
+  return { idCounter: 1, channels: [] }
+}
+
+const DEFAULT_CHANNEL_STORAGE: ChannelStorage = {
+  idCounter: 1,
+  channels: [],
+}
+
+// ---------------------------------------------------------------------------
+// Storage Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Load channel storage from chrome.storage.local.
+ * Initializes with empty defaults on first call.
+ */
+export async function loadChannelStorage(): Promise<ChannelStorage> {
+  const result = await chrome.storage.local.get(STORAGE_KEY)
+  const raw = result[STORAGE_KEY]
+
+  if (!raw) {
+    // Always create a fresh storage object with a new channels array.
+    // Using { ...DEFAULT_CHANNEL_STORAGE } would share the channels array
+    // by reference (shallow spread), causing mutation to leak into the
+    // module-level constant.
+    const fresh = createDefaultChannelStorage()
+    await chrome.storage.local.set({ [STORAGE_KEY]: fresh })
+    return fresh
+  }
+
+  return raw as ChannelStorage
+}
+
+/**
+ * Save channel storage to chrome.storage.local.
+ */
+export async function saveChannelStorage(storage: ChannelStorage): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_KEY]: storage })
+}
+
+/**
+ * Remove all channels (for testing).
+ */
+export async function clearChannels(): Promise<void> {
+  await chrome.storage.local.remove(STORAGE_KEY)
+}
+
+// ---------------------------------------------------------------------------
+// Utility Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Sanitize a name into a URL-safe slug component.
+ * Lowercase, replace non-alphanumeric with hyphens, collapse duplicates.
+ */
+function sanitizeForInternalId(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
+/**
+ * Generate an internal ID from name and platform type.
+ * Format: "{prefix}-{sanitized-name}"
+ * Example: "tg-main-trading-group"
+ */
+export function generateInternalId(name: string, type: ChannelType): string {
+  const slug = sanitizeForInternalId(name)
+  const prefix = INTERNAL_ID_PREFIX[type]
+  return slug ? `${prefix}-${slug}` : `${prefix}-channel`
+}
+
+/**
+ * Generate a unique internal ID that doesn't collide with existing channels.
+ * Appends -2, -3, etc. on collision.
+ */
+function generateUniqueInternalId(
+  name: string,
+  type: ChannelType,
+  existingChannels: Channel[],
+  excludeId?: number
+): string {
+  const baseId = generateInternalId(name, type)
+  const others = existingChannels.filter((ch) => ch.id !== excludeId)
+  const existingIds = new Set(others.map((ch) => ch.internalId))
+
+  if (!existingIds.has(baseId)) return baseId
+
+  let suffix = 2
+  while (existingIds.has(`${baseId}-${suffix}`)) {
+    suffix++
+  }
+  return `${baseId}-${suffix}`
+}
+
+/**
+ * Generate display name from name and platform type.
+ * Format: "{PREFIX}: {name}"
+ * Example: "TG: Main Trading Group"
+ */
+export function generateDisplayName(name: string, type: ChannelType): string {
+  return `${CHANNEL_PREFIX[type]}: ${name.trim()}`
+}
+
+/**
+ * Check if credentials are non-empty (basic validity).
+ * Format validation (token format, URL format) is done in the UI layer.
+ */
+export function areCredentialsValid(credentials: ChannelCredentials): boolean {
+  switch (credentials.type) {
+    case "telegram":
+      return (
+        credentials.botToken.trim().length > 0 &&
+        credentials.chatId.trim().length > 0
+      )
+    case "discord":
+      return credentials.webhookUrl.trim().length > 0
+  }
+}
+
+/**
+ * Check if at least one channel has valid credentials.
+ * Returns false for empty array.
+ */
+export function isAnyChannelConfigured(channels: Channel[]): boolean {
+  return channels.some((ch) => areCredentialsValid(ch.credentials))
+}
+
+// ---------------------------------------------------------------------------
+// CRUD Operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a new channel.
+ * Assigns next available ID, generates internalId and displayName.
+ */
+export async function createChannel(
+  name: string,
+  type: ChannelType,
+  credentials: ChannelCredentials
+): Promise<Channel> {
+  const storage = await loadChannelStorage()
+  const trimmedName = name.trim()
+
+  const channel: Channel = {
+    id: storage.idCounter,
+    internalId: generateUniqueInternalId(trimmedName, type, storage.channels),
+    type,
+    name: trimmedName,
+    displayName: generateDisplayName(trimmedName, type),
+    credentials,
+    order: storage.channels.length,
+  }
+
+  storage.channels.push(channel)
+  storage.idCounter++
+
+  await saveChannelStorage(storage)
+  return channel
+}
+
+/**
+ * Get all channels sorted by order field.
+ */
+export async function getChannels(): Promise<Channel[]> {
+  const storage = await loadChannelStorage()
+  return [...storage.channels].sort((a, b) => a.order - b.order)
+}
+
+/**
+ * Update a channel's name and/or credentials.
+ * Recomputes displayName and internalId if name changes.
+ * Throws if channel not found.
+ * Throws if credentials type doesn't match channel type.
+ */
+export async function updateChannel(
+  id: number,
+  updates: ChannelUpdate
+): Promise<void> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === id)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${id} not found`)
+  }
+
+  if (updates.name !== undefined) {
+    const trimmedName = updates.name.trim()
+    channel.name = trimmedName
+    channel.displayName = generateDisplayName(trimmedName, channel.type)
+    channel.internalId = generateUniqueInternalId(
+      trimmedName,
+      channel.type,
+      storage.channels,
+      id
+    )
+  }
+
+  if (updates.credentials !== undefined) {
+    if (updates.credentials.type !== channel.type) {
+      throw new Error(
+        `Cannot change channel type from "${channel.type}" to "${updates.credentials.type}". Delete and recreate the channel instead.`
+      )
+    }
+    channel.credentials = updates.credentials
+  }
+
+  await saveChannelStorage(storage)
+}
+
+/**
+ * Delete a channel by ID.
+ * Re-calculates order for remaining channels.
+ * ID counter is NOT decremented (IDs are never reused).
+ * No-op if channel doesn't exist.
+ */
+export async function deleteChannel(id: number): Promise<void> {
+  const storage = await loadChannelStorage()
+  const index = storage.channels.findIndex((ch) => ch.id === id)
+
+  if (index === -1) return
+
+  storage.channels.splice(index, 1)
+
+  // Re-calculate order
+  storage.channels.sort((a, b) => a.order - b.order)
+  storage.channels.forEach((ch, i) => {
+    ch.order = i
+  })
+
+  await saveChannelStorage(storage)
+}
+
+/**
+ * Update channel order after drag & drop.
+ * sortedIds is an array of channel IDs in their new order.
+ */
+export async function updateChannelOrder(sortedIds: number[]): Promise<void> {
+  const storage = await loadChannelStorage()
+
+  sortedIds.forEach((id, index) => {
+    const channel = storage.channels.find((ch) => ch.id === id)
+    if (channel) {
+      channel.order = index
+    }
+  })
+
+  await saveChannelStorage(storage)
+}
