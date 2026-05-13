@@ -40,12 +40,31 @@ export type TelegramCredentials = {
 }
 
 /**
- * Discord credentials — Webhook URL only.
+ * Discord credentials — Webhook URL + Thread configurations.
  * The webhook URL embeds channel ID and authentication token.
+ * Threads are always present (empty array if none configured).
  */
 export type DiscordCredentials = {
   type: "discord"
   webhookUrl: string
+  /** Thread configurations for this Discord channel. Always present, default []. */
+  threads: ThreadConfig[]
+}
+
+/**
+ * A single Discord thread configuration.
+ * Threads are nested inside DiscordCredentials and belong to exactly one Discord channel.
+ * Thread IDs are Discord Snowflakes obtained via Developer Mode.
+ */
+export type ThreadConfig = {
+  /** Auto-incremented numeric ID. Never reused after removal. */
+  id: number
+  /** Discord Snowflake, e.g. "1504005327639543898". Obtained via Developer Mode. */
+  threadId: string
+  /** User-friendly display name, e.g. "AAPL Earnings". Set in Settings. */
+  name: string
+  /** Sort order within the channel. Follows creation order (no D&D for threads). */
+  order: number
 }
 
 /**
@@ -98,8 +117,10 @@ export type ChannelUpdate = {
 
 /** Storage wrapper for channels (mirrors TemplateStorage pattern). */
 export type ChannelStorage = {
-  /** Next ID to assign. Incremented on create, never decremented. */
+  /** Next channel ID to assign. Incremented on create, never decremented. */
   idCounter: number
+  /** Next thread ID to assign (global across all channels). Incremented on thread create, never decremented. */
+  threadIdCounter: number
   /** All channels. */
   channels: Channel[]
 }
@@ -117,11 +138,12 @@ const STORAGE_KEY = "tv-capture-channels"
  * share the array reference and cause state bleeding across tests.
  */
 function createDefaultChannelStorage(): ChannelStorage {
-  return { idCounter: 1, channels: [] }
+  return { idCounter: 1, threadIdCounter: 1, channels: [] }
 }
 
 const DEFAULT_CHANNEL_STORAGE: ChannelStorage = {
   idCounter: 1,
+  threadIdCounter: 1,
   channels: [],
 }
 
@@ -132,6 +154,7 @@ const DEFAULT_CHANNEL_STORAGE: ChannelStorage = {
 /**
  * Load channel storage from chrome.storage.local.
  * Initializes with empty defaults on first call.
+ * Auto-migrates: adds threadIdCounter and threads[] for existing Discord channels.
  */
 export async function loadChannelStorage(): Promise<ChannelStorage> {
   const result = await chrome.storage.local.get(STORAGE_KEY)
@@ -147,7 +170,31 @@ export async function loadChannelStorage(): Promise<ChannelStorage> {
     return fresh
   }
 
-  return raw as ChannelStorage
+  const storage = raw as ChannelStorage
+  let needsSave = false
+
+  // Phase 3 migration: add threadIdCounter if missing
+  if (storage.threadIdCounter === undefined) {
+    storage.threadIdCounter = 1
+    needsSave = true
+  }
+
+  // Phase 3 migration: add threads: [] to Discord channels if missing
+  for (const channel of storage.channels) {
+    if (channel.type === "discord") {
+      const creds = channel.credentials as DiscordCredentials
+      if (!creds.threads) {
+        creds.threads = []
+        needsSave = true
+      }
+    }
+  }
+
+  if (needsSave) {
+    await chrome.storage.local.set({ [STORAGE_KEY]: storage })
+  }
+
+  return storage
 }
 
 /**
@@ -367,4 +414,122 @@ export async function updateChannelOrder(sortedIds: number[]): Promise<void> {
   })
 
   await saveChannelStorage(storage)
+}
+
+// ---------------------------------------------------------------------------
+// Thread CRUD Operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Add a thread to a Discord channel.
+ * Auto-increments threadIdCounter and assigns order (append at end).
+ * Throws if channel not found or channel is not Discord.
+ *
+ * @param channelId - The Channel.id to add the thread to
+ * @param name - User-friendly thread name (trimmed)
+ * @param threadId - Discord Snowflake (trimmed)
+ * @returns The created ThreadConfig
+ */
+export async function addThreadToChannel(
+  channelId: number,
+  name: string,
+  threadId: string
+): Promise<ThreadConfig> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "discord") {
+    throw new Error(
+      `Cannot add threads to non-Discord channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as DiscordCredentials
+
+  const threadConfig: ThreadConfig = {
+    id: storage.threadIdCounter,
+    threadId: threadId.trim(),
+    name: name.trim(),
+    order: creds.threads.length,
+  }
+
+  creds.threads.push(threadConfig)
+  storage.threadIdCounter++
+
+  await saveChannelStorage(storage)
+  return threadConfig
+}
+
+/**
+ * Remove a thread from a Discord channel.
+ * Re-indexes order for remaining threads.
+ * threadIdCounter is NOT decremented (IDs are never reused).
+ * No-op if thread not found in the channel.
+ * Throws if channel not found or channel is not Discord.
+ *
+ * @param channelId - The Channel.id that contains the thread
+ * @param threadConfigId - The ThreadConfig.id to remove
+ */
+export async function removeThreadFromChannel(
+  channelId: number,
+  threadConfigId: number
+): Promise<void> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "discord") {
+    throw new Error(
+      `Cannot remove threads from non-Discord channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as DiscordCredentials
+  const index = creds.threads.findIndex((t) => t.id === threadConfigId)
+
+  if (index === -1) return // no-op if not found
+
+  creds.threads.splice(index, 1)
+
+  // Re-index order (same pattern as deleteChannel)
+  creds.threads.forEach((t, i) => {
+    t.order = i
+  })
+
+  await saveChannelStorage(storage)
+}
+
+/**
+ * Get all threads for a Discord channel, sorted by order.
+ * Returns empty array if channel has no threads.
+ * Throws if channel not found or channel is not Discord.
+ *
+ * @param channelId - The Channel.id to get threads for
+ * @returns ThreadConfig[] sorted by order
+ */
+export async function getThreadsForChannel(
+  channelId: number
+): Promise<ThreadConfig[]> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "discord") {
+    throw new Error(
+      `Cannot get threads from non-Discord channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as DiscordCredentials
+  return [...creds.threads].sort((a, b) => a.order - b.order)
 }

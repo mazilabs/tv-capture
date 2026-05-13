@@ -18,8 +18,11 @@ import {
   updateChannel,
   deleteChannel,
   updateChannelOrder,
+  addThreadToChannel,
+  removeThreadFromChannel,
+  getThreadsForChannel,
 } from "../lib-channels"
-import type { Channel } from "../lib-channels"
+import type { Channel, ThreadConfig } from "../lib-channels"
 
 // ---------------------------------------------------------------------------
 // Mock chrome.storage.local
@@ -62,7 +65,7 @@ beforeEach(() => {
 describe("loadChannelStorage", () => {
   it("returns default storage when nothing is stored", async () => {
     const result = await loadChannelStorage()
-    expect(result).toEqual({ idCounter: 1, channels: [] })
+    expect(result).toEqual({ idCounter: 1, threadIdCounter: 1, channels: [] })
   })
 
   it("returns persisted data after manual save", async () => {
@@ -94,7 +97,7 @@ describe("clearChannels", () => {
     await clearChannels()
 
     const result = await loadChannelStorage()
-    expect(result).toEqual({ idCounter: 1, channels: [] })
+    expect(result).toEqual({ idCounter: 1, threadIdCounter: 1, channels: [] })
   })
 })
 
@@ -186,6 +189,7 @@ describe("areCredentialsValid", () => {
       areCredentialsValid({
         type: "discord",
         webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        threads: [],
       })
     ).toBe(true)
   })
@@ -195,6 +199,7 @@ describe("areCredentialsValid", () => {
       areCredentialsValid({
         type: "discord",
         webhookUrl: "",
+        threads: [],
       })
     ).toBe(false)
   })
@@ -231,6 +236,7 @@ describe("isAnyChannelConfigured", () => {
         credentials: {
           type: "discord",
           webhookUrl: "https://discord.com/api/webhooks/123/abc",
+          threads: [],
         },
         order: 0,
       },
@@ -255,7 +261,7 @@ describe("isAnyChannelConfigured", () => {
         type: "discord",
         name: "Test2",
         displayName: "DC: Test2",
-        credentials: { type: "discord", webhookUrl: "" },
+        credentials: { type: "discord", webhookUrl: "", threads: [] },
         order: 1,
       },
     ]
@@ -282,6 +288,7 @@ describe("isAnyChannelConfigured", () => {
         credentials: {
           type: "discord",
           webhookUrl: "https://discord.com/api/webhooks/123/abc",
+          threads: [],
         },
         order: 1,
       },
@@ -318,6 +325,7 @@ describe("createChannel", () => {
     const channel = await createChannel("Alerts", "discord", {
       type: "discord",
       webhookUrl: "https://discord.com/api/webhooks/123/abc",
+      threads: [],
     })
 
     expect(channel.type).toBe("discord")
@@ -325,6 +333,7 @@ describe("createChannel", () => {
     expect(channel.credentials.webhookUrl).toBe(
       "https://discord.com/api/webhooks/123/abc"
     )
+    expect((channel.credentials as any).threads).toEqual([])
   })
 
   it("creates second channel with id=2 and order=1", async () => {
@@ -381,6 +390,7 @@ describe("createChannel", () => {
     const dc = await createChannel("Alerts", "discord", {
       type: "discord",
       webhookUrl: "https://discord.com/api/webhooks/123/abc",
+      threads: [],
     })
 
     expect(tg.internalId).toBe("tg-alerts")
@@ -533,6 +543,7 @@ describe("updateChannel", () => {
         credentials: {
           type: "discord",
           webhookUrl: "https://discord.com/api/webhooks/123/abc",
+          threads: [],
         },
       })
     ).rejects.toThrow(
@@ -675,5 +686,428 @@ describe("updateChannelOrder", () => {
     // ch2.id was at index 2 in sortedIds → order=2
     expect(channels[1].id).toBe(ch2.id)
     expect(channels[1].order).toBe(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Thread CRUD
+// ---------------------------------------------------------------------------
+
+/**
+ * Helper: create a Discord channel with default credentials.
+ * Always includes threads: [] in credentials.
+ */
+async function createDiscordChannel(name: string): Promise<Channel> {
+  return createChannel(name, "discord", {
+    type: "discord",
+    webhookUrl: "https://discord.com/api/webhooks/test-webhook",
+    threads: [],
+  })
+}
+
+describe("addThreadToChannel", () => {
+  it("adds a thread to a Discord channel (T1)", async () => {
+    const ch = await createDiscordChannel("Test Channel")
+
+    const thread = await addThreadToChannel(ch.id, "AAPL Earnings", "1504005327639543898")
+
+    expect(thread.id).toBe(1)
+    expect(thread.threadId).toBe("1504005327639543898")
+    expect(thread.name).toBe("AAPL Earnings")
+    expect(thread.order).toBe(0)
+  })
+
+  it("auto-increments id and order for second thread (T2)", async () => {
+    const ch = await createDiscordChannel("Test Channel")
+    await addThreadToChannel(ch.id, "First", "100")
+    const second = await addThreadToChannel(ch.id, "Second", "200")
+
+    expect(second.id).toBe(2)
+    expect(second.order).toBe(1)
+  })
+
+  it("auto-increments id and order for third thread (T3)", async () => {
+    const ch = await createDiscordChannel("Test Channel")
+    await addThreadToChannel(ch.id, "A", "100")
+    await addThreadToChannel(ch.id, "B", "200")
+    const third = await addThreadToChannel(ch.id, "C", "300")
+
+    expect(third.id).toBe(3)
+    expect(third.order).toBe(2)
+  })
+
+  it("threadIdCounter increments globally across channels (T4)", async () => {
+    const chA = await createDiscordChannel("Channel A")
+    const chB = await createDiscordChannel("Channel B")
+
+    await addThreadToChannel(chA.id, "A1", "100")
+    await addThreadToChannel(chA.id, "A2", "200")
+    await addThreadToChannel(chA.id, "A3", "300")
+
+    const bThread = await addThreadToChannel(chB.id, "B1", "400")
+
+    expect(bThread.id).toBe(4) // global counter: 1,2,3 on chA → 4 on chB
+    expect(bThread.order).toBe(0) // first thread on chB
+  })
+
+  it("trims whitespace from name and threadId (T5)", async () => {
+    const ch = await createDiscordChannel("Test Channel")
+
+    const thread = await addThreadToChannel(
+      ch.id,
+      "  AAPL Earnings  ",
+      "  1504005327639543898  "
+    )
+
+    expect(thread.name).toBe("AAPL Earnings")
+    expect(thread.threadId).toBe("1504005327639543898")
+  })
+
+  it("throws for non-existent channel (T6)", async () => {
+    await expect(
+      addThreadToChannel(999, "Test", "100")
+    ).rejects.toThrow("Channel with id 999 not found")
+  })
+
+  it("throws for Telegram channel (T7)", async () => {
+    const ch = await createChannel("TG Channel", "telegram", {
+      type: "telegram",
+      botToken: "abc",
+      chatId: "123",
+    })
+
+    await expect(
+      addThreadToChannel(ch.id, "Test", "100")
+    ).rejects.toThrow("Cannot add threads to non-Discord channel (type: telegram)")
+  })
+
+  it("persists across load/save cycle (T8)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "Persistent", "100")
+
+    // Reload storage (no clearChannels — data persists in mock)
+    const storage = await loadChannelStorage()
+    const reloadedChannel = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloadedChannel.credentials as any
+    expect(creds.threads).toHaveLength(1)
+    expect(creds.threads[0].name).toBe("Persistent")
+  })
+})
+
+describe("removeThreadFromChannel", () => {
+  it("removes an existing thread and re-indexes order (T9)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "A", "100")
+    await addThreadToChannel(ch.id, "B", "200")
+    await addThreadToChannel(ch.id, "C", "300")
+
+    await removeThreadFromChannel(ch.id, 2) // remove B
+
+    const remaining = await getThreadsForChannel(ch.id)
+    expect(remaining).toHaveLength(2)
+    expect(remaining[0].id).toBe(1)
+    expect(remaining[0].order).toBe(0)
+    expect(remaining[1].id).toBe(3)
+    expect(remaining[1].order).toBe(1)
+  })
+
+  it("removes middle thread correctly (T10)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "A", "100")
+    await addThreadToChannel(ch.id, "B", "200")
+    await addThreadToChannel(ch.id, "C", "300")
+
+    await removeThreadFromChannel(ch.id, 2) // remove middle (B, id=2)
+
+    const remaining = await getThreadsForChannel(ch.id)
+    expect(remaining).toHaveLength(2)
+    expect(remaining[0].id).toBe(1) // A
+    expect(remaining[0].order).toBe(0)
+    expect(remaining[1].id).toBe(3) // C
+    expect(remaining[1].order).toBe(1)
+  })
+
+  it("removes only thread, channel has empty threads (T11)", async () => {
+    const ch = await createDiscordChannel("Test")
+    const thread = await addThreadToChannel(ch.id, "Only", "100")
+
+    await removeThreadFromChannel(ch.id, thread.id)
+
+    const threads = await getThreadsForChannel(ch.id)
+    expect(threads).toEqual([])
+  })
+
+  it("is no-op for non-existent thread id (T12)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "A", "100")
+
+    // Should not throw
+    await removeThreadFromChannel(ch.id, 999)
+
+    const threads = await getThreadsForChannel(ch.id)
+    expect(threads).toHaveLength(1)
+  })
+
+  it("throws for non-existent channel (T13)", async () => {
+    await expect(
+      removeThreadFromChannel(999, 1)
+    ).rejects.toThrow("Channel with id 999 not found")
+  })
+
+  it("throws for Telegram channel (T14)", async () => {
+    const ch = await createChannel("TG", "telegram", {
+      type: "telegram",
+      botToken: "a",
+      chatId: "1",
+    })
+
+    await expect(
+      removeThreadFromChannel(ch.id, 1)
+    ).rejects.toThrow("Cannot remove threads from non-Discord channel (type: telegram)")
+  })
+
+  it("does not decrement threadIdCounter after remove (T15)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "A", "100")
+    await addThreadToChannel(ch.id, "B", "200")
+    await addThreadToChannel(ch.id, "C", "300")
+
+    await removeThreadFromChannel(ch.id, 2) // remove B (id=2)
+    // threadIdCounter was at 4, should stay at 4
+
+    const newThread = await addThreadToChannel(ch.id, "D", "400")
+    expect(newThread.id).toBe(4) // not 2 (not reused)
+  })
+
+  it("persists across load/save cycle (T16)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "ToRemove", "100")
+    await addThreadToChannel(ch.id, "Keep", "200")
+
+    await removeThreadFromChannel(ch.id, 1)
+
+    // Reload and verify
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as any
+    expect(creds.threads).toHaveLength(1)
+    expect(creds.threads[0].name).toBe("Keep")
+  })
+})
+
+describe("getThreadsForChannel", () => {
+  it("returns threads sorted by order (T17)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "C", "300")
+    await addThreadToChannel(ch.id, "A", "100")
+    await addThreadToChannel(ch.id, "B", "200")
+
+    const threads = await getThreadsForChannel(ch.id)
+    expect(threads).toHaveLength(3)
+    // Should be sorted by order: creation order = C(0), A(1), B(2)
+    expect(threads[0].name).toBe("C")
+    expect(threads[1].name).toBe("A")
+    expect(threads[2].name).toBe("B")
+  })
+
+  it("returns empty array for channel with no threads (T18)", async () => {
+    const ch = await createDiscordChannel("Test")
+    const threads = await getThreadsForChannel(ch.id)
+    expect(threads).toEqual([])
+  })
+
+  it("throws for non-existent channel (T19)", async () => {
+    await expect(
+      getThreadsForChannel(999)
+    ).rejects.toThrow("Channel with id 999 not found")
+  })
+
+  it("throws for Telegram channel (T20)", async () => {
+    const ch = await createChannel("TG", "telegram", {
+      type: "telegram",
+      botToken: "a",
+      chatId: "1",
+    })
+
+    await expect(
+      getThreadsForChannel(ch.id)
+    ).rejects.toThrow("Cannot get threads from non-Discord channel (type: telegram)")
+  })
+
+  it("returns a copy, not a reference (T21)", async () => {
+    const ch = await createDiscordChannel("Test")
+    await addThreadToChannel(ch.id, "A", "100")
+
+    const threads = await getThreadsForChannel(ch.id)
+    threads.push({ id: 999, threadId: "hack", name: "Hack", order: 99 })
+
+    // Reload and verify storage was not mutated
+    const reloaded = await getThreadsForChannel(ch.id)
+    expect(reloaded).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Migration — threadIdCounter / threads
+// ---------------------------------------------------------------------------
+
+describe("Migration — threadIdCounter / threads", () => {
+  it("fresh storage has threadIdCounter: 1 and empty channels (T22)", async () => {
+    const storage = await loadChannelStorage()
+    expect(storage.idCounter).toBe(1)
+    expect(storage.threadIdCounter).toBe(1)
+    expect(storage.channels).toEqual([])
+  })
+
+  it("migrates storage without threadIdCounter (T23)", async () => {
+    // Simulate old storage without threadIdCounter
+    const oldStorage = { idCounter: 5, channels: [] }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    expect(storage.threadIdCounter).toBe(1)
+    expect(storage.idCounter).toBe(5)
+  })
+
+  it("migrates Discord channel without threads field (T24)", async () => {
+    // Create old-style Discord channel (no threads)
+    const oldStorage = {
+      idCounter: 2,
+      threadIdCounter: 1,
+      channels: [
+        {
+          id: 1,
+          internalId: "dc-old",
+          type: "discord" as const,
+          name: "Old Channel",
+          displayName: "DC: Old Channel",
+          credentials: { type: "discord" as const, webhookUrl: "https://discord.com/api/webhooks/test" },
+          order: 0,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    const discordCh = storage.channels.find((c) => c.id === 1)
+    expect(discordCh).toBeDefined()
+    const creds = discordCh!.credentials as any
+    expect(creds.threads).toEqual([])
+  })
+
+  it("migrates Telegram-only storage (no Discord channels) (T25)", async () => {
+    const oldStorage = {
+      idCounter: 2,
+      channels: [
+        {
+          id: 1,
+          type: "telegram" as const,
+          name: "TG Channel",
+          internalId: "tg-channel",
+          displayName: "TG: Channel",
+          credentials: { type: "telegram" as const, botToken: "abc", chatId: "123" },
+          order: 0,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    expect(storage.threadIdCounter).toBe(1)
+    // Telegram channel should not have threads
+    const tgCh = storage.channels[0]
+    expect((tgCh.credentials as any).threads).toBeUndefined()
+  })
+
+  it("migrates mixed TG + DC storage (T26)", async () => {
+    const oldStorage = {
+      idCounter: 3,
+      channels: [
+        {
+          id: 1,
+          type: "telegram" as const,
+          name: "TG",
+          internalId: "tg-main",
+          displayName: "TG: Main",
+          credentials: { type: "telegram" as const, botToken: "a", chatId: "1" },
+          order: 0,
+        },
+        {
+          id: 2,
+          type: "discord" as const,
+          name: "DC",
+          internalId: "dc-main",
+          displayName: "DC: Main",
+          credentials: { type: "discord" as const, webhookUrl: "https://discord.com/api/webhooks/test" },
+          order: 1,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    expect(storage.threadIdCounter).toBe(1)
+
+    const tgCh = storage.channels.find((c) => c.id === 1)!
+    expect((tgCh.credentials as any).threads).toBeUndefined()
+
+    const dcCh = storage.channels.find((c) => c.id === 2)!
+    expect((dcCh.credentials as any).threads).toEqual([])
+  })
+
+  it("migration is idempotent (T27)", async () => {
+    const oldStorage = {
+      idCounter: 2,
+      channels: [
+        {
+          id: 1,
+          type: "discord" as const,
+          name: "DC",
+          internalId: "dc-main",
+          displayName: "DC: Main",
+          credentials: { type: "discord" as const, webhookUrl: "https://discord.com/api/webhooks/test" },
+          order: 0,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    // First load — migration happens
+    const first = await loadChannelStorage()
+    expect(first.threadIdCounter).toBe(1)
+    expect((first.channels[0].credentials as any).threads).toEqual([])
+
+    // Second load — no migration, should be identical
+    const second = await loadChannelStorage()
+    expect(second.threadIdCounter).toBe(1)
+    expect((second.channels[0].credentials as any).threads).toEqual([])
+    expect(second.channels).toHaveLength(1)
+  })
+
+  it("already-migrated storage does not re-migrate (T28)", async () => {
+    const migratedStorage = {
+      idCounter: 3,
+      threadIdCounter: 5,
+      channels: [
+        {
+          id: 1,
+          type: "discord" as const,
+          name: "DC",
+          internalId: "dc-main",
+          displayName: "DC: Main",
+          credentials: { type: "discord" as const, webhookUrl: "https://discord.com/api/webhooks/test", threads: [{ id: 1, threadId: "100", name: "Existing", order: 0 }] },
+          order: 0,
+        },
+      ],
+    }
+    await saveChannelStorage(migratedStorage as any)
+
+    const storage = await loadChannelStorage()
+    // threadIdCounter should still be 5 (not reset to 1)
+    expect(storage.threadIdCounter).toBe(5)
+    // threads should still have 1 entry (not duplicated)
+    const dcCh = storage.channels.find((c) => c.id === 1)!
+    expect((dcCh.credentials as any).threads).toHaveLength(1)
+    expect((dcCh.credentials as any).threads[0].name).toBe("Existing")
   })
 })
