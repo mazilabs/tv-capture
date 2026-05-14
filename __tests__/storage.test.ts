@@ -293,6 +293,7 @@ describe("migration", () => {
       type: "telegram",
       botToken: "123456:ABC-DEF1234",
       chatId: "987654321",
+      topics: [],
     })
   })
 
@@ -387,6 +388,7 @@ describe("migration", () => {
       type: "telegram",
       botToken: "999:XYZ",
       chatId: "-1001234567890",
+      topics: [],
     })
   })
 })

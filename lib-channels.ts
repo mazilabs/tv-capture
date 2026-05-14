@@ -30,13 +30,15 @@ const INTERNAL_ID_PREFIX: Record<ChannelType, string> = {
 // ---------------------------------------------------------------------------
 
 /**
- * Telegram credentials — Bot Token + Chat ID.
- * Required for Telegram Bot API sendMessage/sendPhoto.
+ * Telegram credentials — Bot Token + Chat ID + Topic configurations.
+ * Topics are always present (empty array if none configured).
  */
 export type TelegramCredentials = {
   type: "telegram"
   botToken: string
   chatId: string
+  /** Topic configurations for this Telegram channel. Always present, default []. */
+  topics: TopicConfig[]
 }
 
 /**
@@ -64,6 +66,22 @@ export type ThreadConfig = {
   /** User-friendly display name, e.g. "AAPL Earnings". Set in Settings. */
   name: string
   /** Sort order within the channel. Follows creation order (no D&D for threads). */
+  order: number
+}
+
+/**
+ * A single Telegram topic configuration.
+ * Topics are nested inside TelegramCredentials and belong to exactly one Telegram channel.
+ * Topic IDs are opaque integers as strings, obtained from Share Links or Telegram.
+ */
+export type TopicConfig = {
+  /** Auto-incremented numeric ID. Never reused after removal. */
+  id: number
+  /** Telegram topic ID as string, e.g. "17". Obtained from Share Link or manual entry. */
+  topicId: string
+  /** User-friendly display name, e.g. "Gold Analysis". Set in Settings. */
+  name: string
+  /** Sort order within the channel. 0-based. */
   order: number
 }
 
@@ -98,8 +116,10 @@ export type Channel = {
   displayName: string
   /** Platform-specific credentials (discriminated by type field). */
   credentials: ChannelCredentials
-  /** Sort order (0-based). Updated on drag & drop reorder. */
+  /** Sort order in Settings (creation order). */
   order: number
+  /** Sort order in Send UI. Default = order at creation. Updated by D&D in Send UI. */
+  sendOrder: number
 }
 
 /**
@@ -121,6 +141,8 @@ export type ChannelStorage = {
   idCounter: number
   /** Next thread ID to assign (global across all channels). Incremented on thread create, never decremented. */
   threadIdCounter: number
+  /** Next topic ID to assign (global across all channels). Incremented on topic create, never decremented. */
+  topicIdCounter: number
   /** All channels. */
   channels: Channel[]
 }
@@ -138,12 +160,13 @@ const STORAGE_KEY = "tv-capture-channels"
  * share the array reference and cause state bleeding across tests.
  */
 function createDefaultChannelStorage(): ChannelStorage {
-  return { idCounter: 1, threadIdCounter: 1, channels: [] }
+  return { idCounter: 1, threadIdCounter: 1, topicIdCounter: 1, channels: [] }
 }
 
 const DEFAULT_CHANNEL_STORAGE: ChannelStorage = {
   idCounter: 1,
   threadIdCounter: 1,
+  topicIdCounter: 1,
   channels: [],
 }
 
@@ -187,6 +210,31 @@ export async function loadChannelStorage(): Promise<ChannelStorage> {
         creds.threads = []
         needsSave = true
       }
+    }
+  }
+
+  // Phase 5 migration: add topicIdCounter if missing
+  if (storage.topicIdCounter === undefined) {
+    storage.topicIdCounter = 1
+    needsSave = true
+  }
+
+  // Phase 5 migration: add topics: [] to Telegram channels if missing
+  for (const channel of storage.channels) {
+    if (channel.type === "telegram") {
+      const creds = channel.credentials as TelegramCredentials
+      if (!creds.topics) {
+        creds.topics = []
+        needsSave = true
+      }
+    }
+  }
+
+  // Phase 5 migration: add sendOrder to all channels if missing
+  for (const channel of storage.channels) {
+    if (channel.sendOrder === undefined) {
+      channel.sendOrder = channel.order
+      needsSave = true
     }
   }
 
@@ -318,6 +366,7 @@ export async function createChannel(
     displayName: generateDisplayName(trimmedName, type),
     credentials,
     order: storage.channels.length,
+    sendOrder: storage.channels.length,
   }
 
   storage.channels.push(channel)
@@ -532,4 +581,170 @@ export async function getThreadsForChannel(
 
   const creds = channel.credentials as DiscordCredentials
   return [...creds.threads].sort((a, b) => a.order - b.order)
+}
+
+// ---------------------------------------------------------------------------
+// Topic CRUD Operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Add a topic to a Telegram channel.
+ * Auto-increments topicIdCounter and assigns order (append at end).
+ * Blocks topic ID "1" (always resolves to General — sends to main channel).
+ * Throws if channel not found or channel is not Telegram.
+ */
+export async function addTopicToChannel(
+  channelId: number,
+  name: string,
+  topicId: string
+): Promise<TopicConfig> {
+  const trimmedTopicId = topicId.trim()
+
+  // Block topic ID "1" — always resolves to General (D16)
+  if (trimmedTopicId === "1") {
+    throw new Error(
+      `Cannot use topic ID "1" — it always resolves to the General topic. Use the main channel to send to General.`
+    )
+  }
+
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "telegram") {
+    throw new Error(
+      `Cannot add topics to non-Telegram channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as TelegramCredentials
+
+  const topicConfig: TopicConfig = {
+    id: storage.topicIdCounter,
+    topicId: trimmedTopicId,
+    name: name.trim(),
+    order: creds.topics.length,
+  }
+
+  creds.topics.push(topicConfig)
+  storage.topicIdCounter++
+
+  await saveChannelStorage(storage)
+  return topicConfig
+}
+
+/**
+ * Remove a topic from a Telegram channel.
+ * Re-indexes order for remaining topics.
+ * topicIdCounter is NOT decremented (IDs are never reused).
+ * No-op if topic not found in the channel.
+ * Throws if channel not found or channel is not Telegram.
+ */
+export async function removeTopicFromChannel(
+  channelId: number,
+  topicConfigId: number
+): Promise<void> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "telegram") {
+    throw new Error(
+      `Cannot remove topics from non-Telegram channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as TelegramCredentials
+  const index = creds.topics.findIndex((t) => t.id === topicConfigId)
+
+  if (index === -1) return
+
+  creds.topics.splice(index, 1)
+
+  // Re-index order
+  creds.topics.forEach((t, i) => {
+    t.order = i
+  })
+
+  await saveChannelStorage(storage)
+}
+
+/**
+ * Get all topics for a Telegram channel, sorted by order.
+ * Returns empty array if channel has no topics.
+ * Throws if channel not found or channel is not Telegram.
+ */
+export async function getTopicsForChannel(
+  channelId: number
+): Promise<TopicConfig[]> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "telegram") {
+    throw new Error(
+      `Cannot get topics from non-Telegram channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as TelegramCredentials
+  return [...creds.topics].sort((a, b) => a.order - b.order)
+}
+
+// ---------------------------------------------------------------------------
+// Chat ID Auto-Correction
+// ---------------------------------------------------------------------------
+
+export type ChatIdCorrectionResult = {
+  updated: boolean
+  oldChatId: string
+  newChatId: string
+}
+
+/**
+ * Compare parsed Chat ID (from Share Link) with stored Chat ID.
+ * If different, update the stored Chat ID (legacy group → supergroup migration).
+ * Must be called BEFORE addTopicToChannel() so the correct chatId is used.
+ *
+ * @returns Correction result with updated flag and old/new values
+ */
+export async function resolveAndCorrectChatId(
+  channelId: number,
+  parsedChatId: string
+): Promise<ChatIdCorrectionResult> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "telegram") {
+    throw new Error(
+      `Cannot correct Chat ID for non-Telegram channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as TelegramCredentials
+  const oldChatId = creds.chatId
+  const newChatId = parsedChatId.trim()
+
+  if (oldChatId === newChatId) {
+    return { updated: false, oldChatId, newChatId }
+  }
+
+  // Update stored Chat ID
+  creds.chatId = newChatId
+  await saveChannelStorage(storage)
+
+  return { updated: true, oldChatId, newChatId }
 }

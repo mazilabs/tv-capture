@@ -21,8 +21,12 @@ import {
   addThreadToChannel,
   removeThreadFromChannel,
   getThreadsForChannel,
+  addTopicToChannel,
+  removeTopicFromChannel,
+  getTopicsForChannel,
+  resolveAndCorrectChatId,
 } from "../lib-channels"
-import type { Channel, ThreadConfig } from "../lib-channels"
+import type { Channel, ThreadConfig, TopicConfig, ChatIdCorrectionResult, TelegramCredentials } from "../lib-channels"
 
 // ---------------------------------------------------------------------------
 // Mock chrome.storage.local
@@ -65,7 +69,7 @@ beforeEach(() => {
 describe("loadChannelStorage", () => {
   it("returns default storage when nothing is stored", async () => {
     const result = await loadChannelStorage()
-    expect(result).toEqual({ idCounter: 1, threadIdCounter: 1, channels: [] })
+    expect(result).toEqual({ idCounter: 1, threadIdCounter: 1, topicIdCounter: 1, channels: [] })
   })
 
   it("returns persisted data after manual save", async () => {
@@ -97,7 +101,7 @@ describe("clearChannels", () => {
     await clearChannels()
 
     const result = await loadChannelStorage()
-    expect(result).toEqual({ idCounter: 1, threadIdCounter: 1, channels: [] })
+    expect(result).toEqual({ idCounter: 1, threadIdCounter: 1, topicIdCounter: 1, channels: [] })
   })
 })
 
@@ -150,6 +154,7 @@ describe("areCredentialsValid", () => {
         type: "telegram",
         botToken: "abc",
         chatId: "123",
+        topics: [],
       })
     ).toBe(true)
   })
@@ -160,6 +165,7 @@ describe("areCredentialsValid", () => {
         type: "telegram",
         botToken: "",
         chatId: "123",
+        topics: [],
       })
     ).toBe(false)
   })
@@ -170,6 +176,7 @@ describe("areCredentialsValid", () => {
         type: "telegram",
         botToken: "abc",
         chatId: "",
+        topics: [],
       })
     ).toBe(false)
   })
@@ -180,6 +187,7 @@ describe("areCredentialsValid", () => {
         type: "telegram",
         botToken: "  ",
         chatId: "  ",
+        topics: [],
       })
     ).toBe(false)
   })
@@ -218,8 +226,9 @@ describe("isAnyChannelConfigured", () => {
         type: "telegram",
         name: "Test",
         displayName: "TG: Test",
-        credentials: { type: "telegram", botToken: "abc", chatId: "123" },
+        credentials: { type: "telegram", botToken: "abc", chatId: "123", topics: [] },
         order: 0,
+        sendOrder: 0,
       },
     ]
     expect(isAnyChannelConfigured(channels)).toBe(true)
@@ -239,6 +248,7 @@ describe("isAnyChannelConfigured", () => {
           threads: [],
         },
         order: 0,
+        sendOrder: 0,
       },
     ]
     expect(isAnyChannelConfigured(channels)).toBe(true)
@@ -252,8 +262,9 @@ describe("isAnyChannelConfigured", () => {
         type: "telegram",
         name: "Test",
         displayName: "TG: Test",
-        credentials: { type: "telegram", botToken: "", chatId: "" },
+        credentials: { type: "telegram", botToken: "", chatId: "", topics: [] },
         order: 0,
+        sendOrder: 0,
       },
       {
         id: 2,
@@ -263,6 +274,7 @@ describe("isAnyChannelConfigured", () => {
         displayName: "DC: Test2",
         credentials: { type: "discord", webhookUrl: "", threads: [] },
         order: 1,
+        sendOrder: 1,
       },
     ]
     expect(isAnyChannelConfigured(channels)).toBe(false)
@@ -276,8 +288,9 @@ describe("isAnyChannelConfigured", () => {
         type: "telegram",
         name: "Invalid",
         displayName: "TG: Invalid",
-        credentials: { type: "telegram", botToken: "", chatId: "" },
+        credentials: { type: "telegram", botToken: "", chatId: "", topics: [] },
         order: 0,
+        sendOrder: 0,
       },
       {
         id: 2,
@@ -291,6 +304,7 @@ describe("isAnyChannelConfigured", () => {
           threads: [],
         },
         order: 1,
+        sendOrder: 1,
       },
     ]
     expect(isAnyChannelConfigured(channels)).toBe(true)
@@ -307,6 +321,7 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "abc123",
       chatId: "987654321",
+      topics: [],
     })
 
     expect(channel.id).toBe(1)
@@ -317,6 +332,7 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "abc123",
       chatId: "987654321",
+      topics: [],
     })
     expect(channel.order).toBe(0)
   })
@@ -341,12 +357,14 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
 
     const second = await createChannel("Second", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
 
     expect(second.id).toBe(2)
@@ -358,6 +376,7 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "abc",
       chatId: "123",
+      topics: [],
     })
 
     expect(channel.name).toBe("My Group")
@@ -369,12 +388,14 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
 
     const second = await createChannel("Trading", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
 
     expect(second.internalId).toBe("tg-trading-2")
@@ -385,6 +406,7 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
 
     const dc = await createChannel("Alerts", "discord", {
@@ -402,16 +424,19 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
     await createChannel("B", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
     await createChannel("C", "telegram", {
       type: "telegram",
       botToken: "c",
       chatId: "3",
+      topics: [],
     })
 
     await deleteChannel(2)
@@ -420,6 +445,7 @@ describe("createChannel", () => {
       type: "telegram",
       botToken: "d",
       chatId: "4",
+      topics: [],
     })
 
     expect(fourth.id).toBe(4)
@@ -442,16 +468,19 @@ describe("getChannels", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
     const ch2 = await createChannel("Second", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
     const ch3 = await createChannel("Third", "telegram", {
       type: "telegram",
       botToken: "c",
       chatId: "3",
+      topics: [],
     })
 
     // Manually shuffle orders to test sort
@@ -474,6 +503,7 @@ describe("updateChannel", () => {
       type: "telegram",
       botToken: "abc",
       chatId: "123",
+      topics: [],
     })
 
     await updateChannel(ch.id, { name: "Renamed" })
@@ -489,10 +519,11 @@ describe("updateChannel", () => {
       type: "telegram",
       botToken: "old_token",
       chatId: "old_chat",
+      topics: [],
     })
 
     await updateChannel(ch.id, {
-      credentials: { type: "telegram", botToken: "new_token", chatId: "new_chat" },
+      credentials: { type: "telegram", botToken: "new_token", chatId: "new_chat", topics: [] },
     })
 
     const channels = await getChannels()
@@ -503,6 +534,7 @@ describe("updateChannel", () => {
       type: "telegram",
       botToken: "new_token",
       chatId: "new_chat",
+      topics: [],
     })
   })
 
@@ -511,11 +543,13 @@ describe("updateChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
     const ch2 = await createChannel("Beta", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
 
     await updateChannel(ch2.id, { name: "Alpha" })
@@ -536,6 +570,7 @@ describe("updateChannel", () => {
       type: "telegram",
       botToken: "abc",
       chatId: "123",
+      topics: [],
     })
 
     await expect(
@@ -562,16 +597,19 @@ describe("deleteChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
     await createChannel("B", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
     await createChannel("C", "telegram", {
       type: "telegram",
       botToken: "c",
       chatId: "3",
+      topics: [],
     })
 
     await deleteChannel(2)
@@ -589,6 +627,7 @@ describe("deleteChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
 
     // Should not throw
@@ -603,16 +642,19 @@ describe("deleteChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
     await createChannel("B", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
     await createChannel("C", "telegram", {
       type: "telegram",
       botToken: "c",
       chatId: "3",
+      topics: [],
     })
 
     await deleteChannel(2)
@@ -621,6 +663,7 @@ describe("deleteChannel", () => {
       type: "telegram",
       botToken: "d",
       chatId: "4",
+      topics: [],
     })
 
     // idCounter was at 4 before delete, stays at 4
@@ -638,16 +681,19 @@ describe("updateChannelOrder", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
     const ch2 = await createChannel("B", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
     const ch3 = await createChannel("C", "telegram", {
       type: "telegram",
       botToken: "c",
       chatId: "3",
+      topics: [],
     })
 
     // Reverse order
@@ -667,11 +713,13 @@ describe("updateChannelOrder", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
     const ch2 = await createChannel("B", "telegram", {
       type: "telegram",
       botToken: "b",
       chatId: "2",
+      topics: [],
     })
 
     // sortedIds includes an unknown id 99 at index 0.
@@ -774,6 +822,7 @@ describe("addThreadToChannel", () => {
       type: "telegram",
       botToken: "abc",
       chatId: "123",
+      topics: [],
     })
 
     await expect(
@@ -859,6 +908,7 @@ describe("removeThreadFromChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
 
     await expect(
@@ -927,6 +977,7 @@ describe("getThreadsForChannel", () => {
       type: "telegram",
       botToken: "a",
       chatId: "1",
+      topics: [],
     })
 
     await expect(
@@ -956,6 +1007,7 @@ describe("Migration — threadIdCounter / threads", () => {
     const storage = await loadChannelStorage()
     expect(storage.idCounter).toBe(1)
     expect(storage.threadIdCounter).toBe(1)
+    expect(storage.topicIdCounter).toBe(1)
     expect(storage.channels).toEqual([])
   })
 
@@ -1109,5 +1161,528 @@ describe("Migration — threadIdCounter / threads", () => {
     const dcCh = storage.channels.find((c) => c.id === 1)!
     expect((dcCh.credentials as any).threads).toHaveLength(1)
     expect((dcCh.credentials as any).threads[0].name).toBe("Existing")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Topic CRUD
+// ---------------------------------------------------------------------------
+
+/**
+ * Helper: create a Telegram channel with default credentials.
+ * Always includes topics: [] in credentials.
+ */
+async function createTelegramChannel(name: string): Promise<Channel> {
+  return createChannel(name, "telegram", {
+    type: "telegram",
+    botToken: "test-bot",
+    chatId: "-100123",
+    topics: [],
+  })
+}
+
+describe("addTopicToChannel", () => {
+  it("adds a topic to a Telegram channel (P1)", async () => {
+    const ch = await createTelegramChannel("Test Channel")
+
+    const topic = await addTopicToChannel(ch.id, "Gold Analysis", "17")
+
+    expect(topic.id).toBe(1)
+    expect(topic.topicId).toBe("17")
+    expect(topic.name).toBe("Gold Analysis")
+    expect(topic.order).toBe(0)
+  })
+
+  it("auto-increments id and order for second topic (P2)", async () => {
+    const ch = await createTelegramChannel("Test Channel")
+    await addTopicToChannel(ch.id, "First", "100")
+    const second = await addTopicToChannel(ch.id, "Second", "200")
+
+    expect(second.id).toBe(2)
+    expect(second.order).toBe(1)
+  })
+
+  it("topicIdCounter increments globally across channels (P3)", async () => {
+    const chA = await createTelegramChannel("Channel A")
+    const chB = await createTelegramChannel("Channel B")
+
+    await addTopicToChannel(chA.id, "A1", "100")
+    await addTopicToChannel(chA.id, "A2", "200")
+    await addTopicToChannel(chA.id, "A3", "300")
+
+    const bTopic = await addTopicToChannel(chB.id, "B1", "400")
+
+    expect(bTopic.id).toBe(4) // global counter: 1,2,3 on chA → 4 on chB
+    expect(bTopic.order).toBe(0) // first topic on chB
+  })
+
+  it("trims whitespace from name and topicId (P4)", async () => {
+    const ch = await createTelegramChannel("Test Channel")
+
+    const topic = await addTopicToChannel(ch.id, "  Gold Analysis  ", "  17  ")
+
+    expect(topic.name).toBe("Gold Analysis")
+    expect(topic.topicId).toBe("17")
+  })
+
+  it("throws for non-existent channel (P5)", async () => {
+    await expect(
+      addTopicToChannel(999, "Test", "100")
+    ).rejects.toThrow("Channel with id 999 not found")
+  })
+
+  it("throws for Discord channel (P6)", async () => {
+    const ch = await createChannel("DC Channel", "discord", {
+      type: "discord",
+      webhookUrl: "https://discord.com/api/webhooks/test",
+      threads: [],
+    })
+
+    await expect(
+      addTopicToChannel(ch.id, "Test", "100")
+    ).rejects.toThrow("Cannot add topics to non-Telegram channel (type: discord)")
+  })
+
+  it("rejects topic ID '1' (P7)", async () => {
+    const ch = await createTelegramChannel("Test")
+
+    await expect(
+      addTopicToChannel(ch.id, "General", "1")
+    ).rejects.toThrow("Cannot use topic ID \"1\"")
+  })
+
+  it("persists across load/save cycle (P8)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "Persistent", "100")
+
+    // Reload storage
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.topics).toHaveLength(1)
+    expect(creds.topics[0].name).toBe("Persistent")
+  })
+})
+
+describe("removeTopicFromChannel", () => {
+  it("removes existing topic and re-indexes order (P9)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "A", "100")
+    await addTopicToChannel(ch.id, "B", "200")
+    await addTopicToChannel(ch.id, "C", "300")
+
+    await removeTopicFromChannel(ch.id, 2) // remove B
+
+    const remaining = await getTopicsForChannel(ch.id)
+    expect(remaining).toHaveLength(2)
+    expect(remaining[0].id).toBe(1)
+    expect(remaining[0].order).toBe(0)
+    expect(remaining[1].id).toBe(3)
+    expect(remaining[1].order).toBe(1)
+  })
+
+  it("removes middle topic correctly (P10)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "A", "100")
+    await addTopicToChannel(ch.id, "B", "200")
+    await addTopicToChannel(ch.id, "C", "300")
+
+    await removeTopicFromChannel(ch.id, 2) // remove middle (B, id=2)
+
+    const remaining = await getTopicsForChannel(ch.id)
+    expect(remaining).toHaveLength(2)
+    expect(remaining[0].id).toBe(1)
+    expect(remaining[0].order).toBe(0)
+    expect(remaining[1].id).toBe(3)
+    expect(remaining[1].order).toBe(1)
+  })
+
+  it("removes only topic, channel has empty topics (P11)", async () => {
+    const ch = await createTelegramChannel("Test")
+    const topic = await addTopicToChannel(ch.id, "Only", "100")
+
+    await removeTopicFromChannel(ch.id, topic.id)
+
+    const topics = await getTopicsForChannel(ch.id)
+    expect(topics).toEqual([])
+  })
+
+  it("is no-op for non-existent topic id (P12)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "A", "100")
+
+    // Should not throw
+    await removeTopicFromChannel(ch.id, 999)
+
+    const topics = await getTopicsForChannel(ch.id)
+    expect(topics).toHaveLength(1)
+  })
+
+  it("throws for non-existent channel (P13)", async () => {
+    await expect(
+      removeTopicFromChannel(999, 1)
+    ).rejects.toThrow("Channel with id 999 not found")
+  })
+
+  it("throws for Discord channel (P14)", async () => {
+    const ch = await createChannel("DC", "discord", {
+      type: "discord",
+      webhookUrl: "https://discord.com/api/webhooks/test",
+      threads: [],
+    })
+
+    await expect(
+      removeTopicFromChannel(ch.id, 1)
+    ).rejects.toThrow("Cannot remove topics from non-Telegram channel (type: discord)")
+  })
+
+  it("does not decrement topicIdCounter after remove (P15)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "A", "100")
+    await addTopicToChannel(ch.id, "B", "200")
+    await addTopicToChannel(ch.id, "C", "300")
+
+    await removeTopicFromChannel(ch.id, 2) // remove B (id=2)
+
+    const newTopic = await addTopicToChannel(ch.id, "D", "400")
+    expect(newTopic.id).toBe(4) // not 2 (not reused)
+  })
+
+  it("persists across load/save cycle (P16)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "ToRemove", "100")
+    await addTopicToChannel(ch.id, "Keep", "200")
+
+    await removeTopicFromChannel(ch.id, 1)
+
+    // Reload and verify
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.topics).toHaveLength(1)
+    expect(creds.topics[0].name).toBe("Keep")
+  })
+})
+
+describe("getTopicsForChannel", () => {
+  it("returns topics sorted by order (P17)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "C", "300")
+    await addTopicToChannel(ch.id, "A", "100")
+    await addTopicToChannel(ch.id, "B", "200")
+
+    const topics = await getTopicsForChannel(ch.id)
+    expect(topics).toHaveLength(3)
+    // Should be sorted by order: creation order = C(0), A(1), B(2)
+    expect(topics[0].name).toBe("C")
+    expect(topics[1].name).toBe("A")
+    expect(topics[2].name).toBe("B")
+  })
+
+  it("returns empty array for channel with no topics (P18)", async () => {
+    const ch = await createTelegramChannel("Test")
+    const topics = await getTopicsForChannel(ch.id)
+    expect(topics).toEqual([])
+  })
+
+  it("throws for non-existent channel (P19)", async () => {
+    await expect(
+      getTopicsForChannel(999)
+    ).rejects.toThrow("Channel with id 999 not found")
+  })
+
+  it("throws for Discord channel (P20)", async () => {
+    const ch = await createChannel("DC", "discord", {
+      type: "discord",
+      webhookUrl: "https://discord.com/api/webhooks/test",
+      threads: [],
+    })
+
+    await expect(
+      getTopicsForChannel(ch.id)
+    ).rejects.toThrow("Cannot get topics from non-Telegram channel (type: discord)")
+  })
+
+  it("returns a copy, not a reference (P21)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await addTopicToChannel(ch.id, "A", "100")
+
+    const topics = await getTopicsForChannel(ch.id)
+    topics.push({ id: 999, topicId: "hack", name: "Hack", order: 99 })
+
+    // Reload and verify storage was not mutated
+    const reloaded = await getTopicsForChannel(ch.id)
+    expect(reloaded).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Chat ID Auto-Correction
+// ---------------------------------------------------------------------------
+
+describe("resolveAndCorrectChatId", () => {
+  it("returns updated: false when Chat IDs are the same (C1)", async () => {
+    const ch = await createTelegramChannel("Test")
+
+    const result = await resolveAndCorrectChatId(ch.id, "-100123")
+
+    expect(result).toEqual({
+      updated: false,
+      oldChatId: "-100123",
+      newChatId: "-100123",
+    })
+  })
+
+  it("returns updated: true and updates stored Chat ID when different (C2)", async () => {
+    const ch = await createTelegramChannel("Test")
+
+    const result = await resolveAndCorrectChatId(ch.id, "-100999")
+
+    expect(result).toEqual({
+      updated: true,
+      oldChatId: "-100123",
+      newChatId: "-100999",
+    })
+
+    // Verify stored Chat ID was updated
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.chatId).toBe("-100999")
+  })
+
+  it("throws for non-existent channel (C3)", async () => {
+    await expect(
+      resolveAndCorrectChatId(999, "-100123")
+    ).rejects.toThrow("Channel with id 999 not found")
+  })
+
+  it("throws for Discord channel (C4)", async () => {
+    const ch = await createChannel("DC", "discord", {
+      type: "discord",
+      webhookUrl: "https://discord.com/api/webhooks/test",
+      threads: [],
+    })
+
+    await expect(
+      resolveAndCorrectChatId(ch.id, "-100123")
+    ).rejects.toThrow("Cannot correct Chat ID for non-Telegram channel (type: discord)")
+  })
+
+  it("trims whitespace from parsedChatId (C5)", async () => {
+    const ch = await createTelegramChannel("Test")
+
+    const result = await resolveAndCorrectChatId(ch.id, "  -100999  ")
+
+    expect(result.updated).toBe(true)
+    expect(result.newChatId).toBe("-100999")
+
+    // Verify stored Chat ID was updated to trimmed value
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.chatId).toBe("-100999")
+  })
+
+  it("persists updated Chat ID after reload (C6)", async () => {
+    const ch = await createTelegramChannel("Test")
+    await resolveAndCorrectChatId(ch.id, "-100999")
+
+    // Reload and verify
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.chatId).toBe("-100999")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Migration — Phase 5: topicIdCounter / topics / sendOrder
+// ---------------------------------------------------------------------------
+
+describe("Migration — Phase 5: topicIdCounter / topics / sendOrder", () => {
+  it("fresh storage has topicIdCounter: 1 and empty channels (M5-1)", async () => {
+    const storage = await loadChannelStorage()
+    expect(storage.idCounter).toBe(1)
+    expect(storage.threadIdCounter).toBe(1)
+    expect(storage.topicIdCounter).toBe(1)
+    expect(storage.channels).toEqual([])
+  })
+
+  it("migrates storage without topicIdCounter (M5-2)", async () => {
+    const oldStorage = { idCounter: 5, threadIdCounter: 1, channels: [] }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    expect(storage.topicIdCounter).toBe(1)
+    expect(storage.idCounter).toBe(5)
+  })
+
+  it("migrates Telegram channel without topics field (M5-3)", async () => {
+    const oldStorage = {
+      idCounter: 2,
+      threadIdCounter: 1,
+      channels: [
+        {
+          id: 1,
+          internalId: "tg-old",
+          type: "telegram" as const,
+          name: "Old TG",
+          displayName: "TG: Old TG",
+          credentials: { type: "telegram" as const, botToken: "abc", chatId: "123" },
+          order: 0,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    const tgCh = storage.channels.find((c) => c.id === 1)
+    expect(tgCh).toBeDefined()
+    const creds = tgCh!.credentials as any
+    expect(creds.topics).toEqual([])
+  })
+
+  it("migrates channel without sendOrder (M5-4)", async () => {
+    const oldStorage = {
+      idCounter: 2,
+      threadIdCounter: 1,
+      topicIdCounter: 1,
+      channels: [
+        {
+          id: 1,
+          internalId: "tg-ordering",
+          type: "telegram" as const,
+          name: "Order Test",
+          displayName: "TG: Order Test",
+          credentials: { type: "telegram" as const, botToken: "abc", chatId: "123", topics: [] },
+          order: 3,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    const ch = storage.channels.find((c) => c.id === 1)!
+    expect(ch.sendOrder).toBe(3) // should match order
+  })
+
+  it("migrates Discord channel (no topics needed) (M5-5)", async () => {
+    const oldStorage = {
+      idCounter: 2,
+      threadIdCounter: 1,
+      channels: [
+        {
+          id: 1,
+          internalId: "dc-main",
+          type: "discord" as const,
+          name: "DC",
+          displayName: "DC: Main",
+          credentials: { type: "discord" as const, webhookUrl: "https://discord.com/api/webhooks/test" },
+          order: 0,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    expect(storage.topicIdCounter).toBe(1)
+    // Discord channel should NOT get topics
+    const dcCh = storage.channels.find((c) => c.id === 1)!
+    expect((dcCh.credentials as any).topics).toBeUndefined()
+    // Discord channel should get sendOrder
+    expect(dcCh.sendOrder).toBe(0)
+  })
+
+  it("migrates mixed TG + DC storage (M5-6)", async () => {
+    const oldStorage = {
+      idCounter: 3,
+      channels: [
+        {
+          id: 1,
+          type: "telegram" as const,
+          name: "TG",
+          internalId: "tg-main",
+          displayName: "TG: Main",
+          credentials: { type: "telegram" as const, botToken: "a", chatId: "1" },
+          order: 0,
+        },
+        {
+          id: 2,
+          type: "discord" as const,
+          name: "DC",
+          internalId: "dc-main",
+          displayName: "DC: Main",
+          credentials: { type: "discord" as const, webhookUrl: "https://discord.com/api/webhooks/test" },
+          order: 1,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    expect(storage.topicIdCounter).toBe(1)
+
+    const tgCh = storage.channels.find((c) => c.id === 1)!
+    expect((tgCh.credentials as any).topics).toEqual([])
+    expect(tgCh.sendOrder).toBe(0)
+
+    const dcCh = storage.channels.find((c) => c.id === 2)!
+    expect((dcCh.credentials as any).topics).toBeUndefined()
+    expect(dcCh.sendOrder).toBe(1)
+  })
+
+  it("migration is idempotent (M5-7)", async () => {
+    const oldStorage = {
+      idCounter: 2,
+      channels: [
+        {
+          id: 1,
+          type: "telegram" as const,
+          name: "TG",
+          internalId: "tg-main",
+          displayName: "TG: Main",
+          credentials: { type: "telegram" as const, botToken: "a", chatId: "1" },
+          order: 0,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    // First load — migration happens
+    const first = await loadChannelStorage()
+    expect(first.topicIdCounter).toBe(1)
+    expect((first.channels[0].credentials as any).topics).toEqual([])
+    expect(first.channels[0].sendOrder).toBe(0)
+
+    // Second load — no migration, should be identical
+    const second = await loadChannelStorage()
+    expect(second.topicIdCounter).toBe(1)
+    expect((second.channels[0].credentials as any).topics).toEqual([])
+    expect(second.channels[0].sendOrder).toBe(0)
+    expect(second.channels).toHaveLength(1)
+  })
+
+  it("sendOrder preserves Settings order (M5-8)", async () => {
+    const oldStorage = {
+      idCounter: 3,
+      threadIdCounter: 1,
+      topicIdCounter: 1,
+      channels: [
+        {
+          id: 1,
+          internalId: "tg-channel",
+          type: "telegram" as const,
+          name: "Channel",
+          displayName: "TG: Channel",
+          credentials: { type: "telegram" as const, botToken: "a", chatId: "1", topics: [] },
+          order: 2,
+        },
+      ],
+    }
+    await saveChannelStorage(oldStorage as any)
+
+    const storage = await loadChannelStorage()
+    expect(storage.channels[0].sendOrder).toBe(2) // equals order
   })
 })

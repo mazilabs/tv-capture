@@ -129,8 +129,10 @@ async function migrateToV2(settings: Settings): Promise<void> {
         type: "telegram",
         botToken: settings.telegram.botToken.trim(),
         chatId: settings.telegram.chatId.trim(),
+        topics: [],
       },
       order: storage.channels.length,
+      sendOrder: storage.channels.length,
     })
     storage.idCounter++
 
