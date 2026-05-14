@@ -22,9 +22,16 @@ import {
   type SendScreenshotResponse,
   type ChartBoundsResponse,
   type SendPhotoWithCaptionMessage,
+  type SendMultiChannelMessage,
+  type SendMultiChannelResponse,
+  type SendTarget,
+  type SendTargetResult,
 } from "./lib-messages"
 import { loadSettings, isConfigured } from "./lib-storage"
 import { sendMessage, sendPhoto } from "./lib-telegram"
+import { loadChannelStorage } from "./lib-channels"
+import { sendDiscordImage } from "./lib-discord"
+import type { TelegramCredentials, DiscordCredentials } from "./lib-channels"
 import { isTradingViewUrl } from "./lib-tradingview"
 import { cropScreenshot } from "./lib-crop"
 import { FLAGS } from "./lib-flags"
@@ -252,6 +259,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true // async response
   }
 
+  // Multi-channel send (Phase 8)
+  if (type === MESSAGE_TYPES.SEND_MULTI_CHANNEL) {
+    const { dataUrl, caption, targets } = message as SendMultiChannelMessage
+    handleSendMultiChannel(dataUrl, caption, targets)
+      .then(sendResponse)
+      .catch(() => {
+        sendResponse({
+          results: targets.map((t) => ({
+            target: t,
+            success: false,
+            error: "Failed to send",
+          })),
+        } satisfies SendMultiChannelResponse)
+      })
+    return true // async response
+  }
+
   return false
 })
 
@@ -422,6 +446,162 @@ async function handleSendPhotoWithCaption(
   )
 
   return result
+}
+
+// ---------------------------------------------------------------------------
+// Multi-channel send handler (Phase 8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Send screenshot to multiple targets in parallel.
+ * Each target is resolved from channel storage to platform-specific API call.
+ * Uses Promise.allSettled for parallel execution with per-target error isolation.
+ *
+ * Target resolution:
+ * - subTargetId contains TopicConfig.id / ThreadConfig.id (internal numeric ID as string)
+ * - Background handler looks up actual platform ID from channel credentials
+ */
+async function handleSendMultiChannel(
+  dataUrl: string,
+  caption: string | undefined,
+  targets: SendTarget[]
+): Promise<SendMultiChannelResponse> {
+  // Load channel storage for credential resolution
+  const storage = await loadChannelStorage()
+
+  const sendPromises = targets.map(
+    async (target): Promise<SendTargetResult> => {
+      // Find channel by ID
+      const channel = storage.channels.find((ch) => ch.id === target.channelId)
+
+      if (!channel) {
+        return {
+          target,
+          success: false,
+          error: `Channel not found (ID: ${target.channelId})`,
+        }
+      }
+
+      try {
+        // --- Telegram ---
+        if (channel.type === "telegram") {
+          const creds = channel.credentials as TelegramCredentials
+
+          // Resolve topic if sub-target specified
+          let messageThreadId: number | undefined
+
+          if (target.subTargetType === "topic" && target.subTargetId) {
+            const topic = creds.topics.find(
+              (t) => t.id.toString() === target.subTargetId
+            )
+
+            if (!topic) {
+              return {
+                target,
+                success: false,
+                error:
+                  "Topic not found. It may have been removed in Settings.",
+              }
+            }
+
+            messageThreadId = parseInt(topic.topicId, 10)
+          }
+
+          const options =
+            messageThreadId !== undefined
+              ? { messageThreadId }
+              : undefined
+
+          const result = await sendPhoto(
+            creds.botToken,
+            creds.chatId,
+            dataUrl,
+            caption,
+            options
+          )
+
+          return {
+            target,
+            success: result.success,
+            error: result.success ? undefined : result.error,
+          }
+        }
+
+        // --- Discord ---
+        if (channel.type === "discord") {
+          const creds = channel.credentials as DiscordCredentials
+
+          // Resolve thread if sub-target specified
+          let threadId: string | undefined
+
+          if (target.subTargetType === "thread" && target.subTargetId) {
+            const thread = creds.threads.find(
+              (t) => t.id.toString() === target.subTargetId
+            )
+
+            if (!thread) {
+              return {
+                target,
+                success: false,
+                error:
+                  "Thread not found. It may have been removed in Settings.",
+              }
+            }
+
+            threadId = thread.threadId
+          }
+
+          const options = threadId ? { threadId } : undefined
+
+          const result = await sendDiscordImage(
+            creds.webhookUrl,
+            dataUrl,
+            caption,
+            options
+          )
+
+          return {
+            target,
+            success: result.success,
+            error: result.success ? undefined : result.error,
+          }
+        }
+
+        // --- Unknown platform ---
+        return {
+          target,
+          success: false,
+          error: `Unsupported channel type: ${channel.type}`,
+        }
+      } catch (error) {
+        return {
+          target,
+          success: false,
+          error:
+            error instanceof Error ? error.message : "Unexpected error",
+        }
+      }
+    }
+  )
+
+  // Execute all sends in parallel — Promise.allSettled ensures all results are collected
+  const settled = await Promise.allSettled(sendPromises)
+
+  // Map settled results to SendTargetResult[]
+  // (all promises have internal try/catch, so all should be fulfilled)
+  const results: SendTargetResult[] = settled.map((result, index) => {
+    if (result.status === "fulfilled") {
+      return result.value
+    }
+    // Safety net — should not happen due to internal try/catch
+    return {
+      target: targets[index],
+      success: false,
+      error: result.reason?.message || "Unexpected error",
+    }
+  })
+
+  return { results }
 }
 
 // ---------------------------------------------------------------------------

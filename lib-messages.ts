@@ -49,6 +49,8 @@ export type ExtensionMessage =
   | { type: typeof MESSAGE_TYPES.SEND_TEST_MESSAGE }
   | { type: typeof MESSAGE_TYPES.CAPTURE_SCREENSHOT }
   | { type: typeof MESSAGE_TYPES.SEND_SCREENSHOT; dataUrl: string }
+  | { type: typeof MESSAGE_TYPES.SEND_PHOTO_WITH_CAPTION; dataUrl: string; caption?: string }
+  | { type: typeof MESSAGE_TYPES.SEND_MULTI_CHANNEL; dataUrl: string; caption?: string; targets: SendTarget[] }
 
 // ---------------------------------------------------------------------------
 // Response shapes (returned FROM background)

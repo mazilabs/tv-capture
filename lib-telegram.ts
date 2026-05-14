@@ -38,6 +38,14 @@ export type SendPhotoResult =
   | { success: true }
   | { success: false; error: string }
 
+/**
+ * Options for Telegram send functions.
+ */
+export type TelegramSendOptions = {
+  /** Telegram topic ID. When present, includes message_thread_id in request. */
+  messageThreadId?: number
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -54,12 +62,14 @@ const TELEGRAM_API_BASE = "https://api.telegram.org"
  * @param botToken - Telegram bot token (e.g., "123456:ABC-DEF...")
  * @param chatId - Target chat ID (e.g., "987654321" or "-1001234567890")
  * @param text - Message text to send
+ * @param options - Optional send options (e.g., messageThreadId for topic sends)
  * @returns SendMessageResult with success status or error message
  */
 export async function sendMessage(
   botToken: string,
   chatId: string,
-  text: string
+  text: string,
+  options?: TelegramSendOptions
 ): Promise<SendMessageResult> {
   // Validate inputs before making API call
   if (!botToken?.trim()) {
@@ -83,6 +93,11 @@ export async function sendMessage(
     chat_id: chatId.trim(),
     text: text,
   })
+
+  // Add message_thread_id when targeting a specific topic
+  if (options?.messageThreadId !== undefined) {
+    params.append("message_thread_id", options.messageThreadId.toString())
+  }
 
   try {
     const response = await fetch(`${url}?${params.toString()}`, {
@@ -119,13 +134,15 @@ export async function sendMessage(
  * @param chatId - Target chat ID
  * @param dataUrl - Image data URL (data:image/jpeg;base64,...)
  * @param caption - Optional photo caption
+ * @param options - Optional send options (e.g., messageThreadId for topic sends)
  * @returns SendPhotoResult with success status or error message
  */
 export async function sendPhoto(
   botToken: string,
   chatId: string,
   dataUrl: string,
-  caption?: string
+  caption?: string,
+  options?: TelegramSendOptions
 ): Promise<SendPhotoResult> {
   // Validate inputs
   if (!botToken?.trim()) {
@@ -143,13 +160,18 @@ export async function sendPhoto(
   try {
     // Convert data URL to Blob
     const blob = await dataUrlToBlob(dataUrl)
-    
+
     // Build FormData
     const formData = new FormData()
     formData.append("chat_id", chatId.trim())
     formData.append("photo", blob, "screenshot.jpg")
     if (caption) {
       formData.append("caption", caption)
+    }
+
+    // Add message_thread_id when targeting a specific topic
+    if (options?.messageThreadId !== undefined) {
+      formData.append("message_thread_id", options.messageThreadId.toString())
     }
 
     const response = await fetch(url, {
@@ -179,6 +201,29 @@ export async function sendPhoto(
 }
 
 /**
+ * Test Telegram topic connectivity — sends test message to a specific topic.
+ *
+ * @param botToken - Telegram bot token
+ * @param chatId - Target chat ID
+ * @param topicId - Telegram topic ID (numeric, e.g. 17)
+ * @param topicName - Topic display name (included in test message)
+ * @returns SendMessageResult
+ */
+export async function testTelegramTopicConnection(
+  botToken: string,
+  chatId: string,
+  topicId: number,
+  topicName: string
+): Promise<SendMessageResult> {
+  return sendMessage(
+    botToken,
+    chatId,
+    `✅ TV Capture topic test — ${topicName}`,
+    { messageThreadId: topicId }
+  )
+}
+
+/**
  * Convert a data URL to a Blob for multipart upload.
  */
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
@@ -201,14 +246,22 @@ function mapError(errorCode: number, description: string): string {
     case 403:
       return "Bot does not have access to this chat. Start a conversation with the bot first."
 
-    case 400:
-      if (description.toLowerCase().includes("chat not found")) {
+    case 400: {
+      const desc = description.toLowerCase()
+      if (desc.includes("chat not found")) {
         return "Invalid Chat ID. Make sure the bot has access to this chat."
       }
-      if (description.toLowerCase().includes("user not found")) {
+      if (desc.includes("user not found")) {
         return "User not found. Make sure you've started a conversation with the bot."
       }
+      if (desc.includes("message thread not found")) {
+        return "This topic no longer exists. It may have been deleted. Remove and re-add the topic in Settings."
+      }
+      if (desc.includes("topic is closed")) {
+        return "This topic is closed and cannot receive messages."
+      }
       return `Invalid request: ${description}`
+    }
 
     case 429:
       return "Too many requests. Please wait a moment and try again."

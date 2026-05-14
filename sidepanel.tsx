@@ -28,7 +28,14 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { MESSAGE_TYPES, type CaptureResponse, type SendScreenshotResponse } from "./lib-messages"
+import {
+  MESSAGE_TYPES,
+  type CaptureResponse,
+  type SendScreenshotResponse,
+  type SendMultiChannelResponse,
+  type SendTarget,
+  type SendTargetResult,
+} from "./lib-messages"
 import {
   getTemplates,
   createTemplate,
@@ -62,6 +69,9 @@ import {
 import { ConfirmDialog } from "./components/ConfirmDialog"
 import { ChannelCard } from "./components/ChannelCard"
 import { SendChannelCard } from "./components/SendChannelCard"
+import { SendResultModal } from "./components/SendResultModal"
+import { sendMessage, testTelegramTopicConnection } from "./lib-telegram"
+import { testDiscordConnection, testDiscordThread } from "./lib-discord"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -128,6 +138,10 @@ function CaptureView({
   // Selection state (AD-7.2)
   const [selectedChannels, setSelectedChannels] = useState<Set<number>>(new Set())
   const [selectedSubEntities, setSelectedSubEntities] = useState<Set<string>>(new Set())
+
+  // Multi-channel send result state (Phase 8)
+  const [sendResults, setSendResults] = useState<SendTargetResult[] | null>(null)
+  const [showSendResultModal, setShowSendResultModal] = useState(false)
 
   // Channel D&D state
   const [channelDragActiveId, setChannelDragActiveId] = useState<number | null>(null)
@@ -247,7 +261,7 @@ function CaptureView({
   }, [clearSelections])
 
   // -----------------------------------------------------------------------
-  // Handle Send (Phase 7: backward compatible — sends to first selected target)
+  // Handle Send (Phase 8: multi-channel send to all selected targets)
   // -----------------------------------------------------------------------
 
   const handleSend = useCallback(async () => {
@@ -255,41 +269,43 @@ function CaptureView({
 
     setCaptureState("sending")
     setSendResult(null)
+    setShowSendResultModal(false)
 
-    // Phase 7: Send to first selected target only (backward compatible via existing SEND_PHOTO_WITH_CAPTION)
-    // Phase 8: Will send to all targets via SEND_MULTI_CHANNEL
+    // Build SendTarget[] from selection state
+    const targets: SendTarget[] = []
 
-    // Determine first target
-    let targetChannelId: number | null = null
-
-    if (selectedChannels.size > 0) {
-      targetChannelId = selectedChannels.values().next().value
-    } else {
-      // Must be a sub-entity selected
-      const firstKey = selectedSubEntities.values().next().value
-      if (firstKey) {
-        const [chId] = firstKey.split(":")
-        targetChannelId = parseInt(chId)
-      }
+    // Main channel selections (selectedChannels contains channel IDs)
+    for (const channelId of selectedChannels) {
+      targets.push({ channelId })
     }
 
-    if (!targetChannelId) {
-      setSendResult({ success: false, error: "No target selected" })
-      setCaptureState("captured")
-      return
+    // Sub-entity selections (selectedSubEntities contains "channelId:subEntityConfigId" keys)
+    for (const key of selectedSubEntities) {
+      const [chIdStr, subIdStr] = key.split(":")
+      const channelId = parseInt(chIdStr, 10)
+      const channel = channels.find((ch) => ch.id === channelId)
+      if (!channel) continue
+
+      targets.push({
+        channelId,
+        subTargetType: channel.type === "telegram" ? ("topic" as const) : ("thread" as const),
+        subTargetId: subIdStr,
+      })
     }
 
     try {
-      // Phase 7: Use existing SEND_PHOTO_WITH_CAPTION (single target)
       const response = (await chrome.runtime.sendMessage({
-        type: MESSAGE_TYPES.SEND_PHOTO_WITH_CAPTION,
+        type: MESSAGE_TYPES.SEND_MULTI_CHANNEL,
         dataUrl: screenshotUrl,
         caption: caption || undefined,
-      })) as SendScreenshotResponse
+        targets,
+      })) as SendMultiChannelResponse
 
-      setSendResult(response)
+      const allSuccess = response.results.every((r) => r.success)
 
-      if (response.success) {
+      if (allSuccess) {
+        // All targets succeeded — reset capture state + show toast
+        setSendResult({ success: true })
         setScreenshotUrl(null)
         setCaptureState("idle")
         setMode("grid")
@@ -298,13 +314,24 @@ function CaptureView({
         setCaption("")
         clearSelections()
       } else {
+        // At least one target failed — show result modal
+        setSendResults(response.results)
+        setShowSendResultModal(true)
         setCaptureState("captured")
       }
     } catch {
       setSendResult({ success: false, error: "Failed to send" })
       setCaptureState("captured")
     }
-  }, [screenshotUrl, caption, totalSelectedCount, selectedChannels, selectedSubEntities, clearSelections])
+  }, [
+    screenshotUrl,
+    caption,
+    totalSelectedCount,
+    selectedChannels,
+    selectedSubEntities,
+    channels,
+    clearSelections,
+  ])
 
   const handleCancel = useCallback(() => {
     setScreenshotUrl(null)
@@ -711,11 +738,23 @@ function CaptureView({
           {sendResult && (
             <div style={sendResult.success ? s.sendSuccess : s.sendError}>
               {sendResult.success
-                ? "Screenshot sent!"
+                ? `Sent to ${totalSelectedCount} target${totalSelectedCount !== 1 ? "s" : ""}`
                 : sendResult.error}
             </div>
           )}
         </div>
+      )}
+
+      {/* Send Result Modal (Phase 8 — shown on partial/complete failure) */}
+      {showSendResultModal && sendResults && (
+        <SendResultModal
+          results={sendResults}
+          channels={channels}
+          onClose={() => {
+            setShowSendResultModal(false)
+            setSendResults(null)
+          }}
+        />
       )}
     </main>
   )
@@ -981,10 +1020,25 @@ function SettingsView({
     const key = `ch-${channelId}`
     setTestStates((prev) => ({ ...prev, [key]: "loading" }))
     try {
-      // Phase 8: actual API calls
-      // For now: placeholder — will be wired in Phase 8
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setTestStates((prev) => ({ ...prev, [key]: "success" }))
+      const channel = channels.find((ch) => ch.id === channelId)
+      if (!channel) {
+        setTestStates((prev) => ({ ...prev, [key]: "error" }))
+        return
+      }
+
+      let result
+      if (channel.type === "telegram") {
+        const creds = channel.credentials as TelegramCredentials
+        result = await sendMessage(creds.botToken, creds.chatId, "✅ TV Capture test message — " + channel.name)
+      } else {
+        const creds = channel.credentials as DiscordCredentials
+        result = await testDiscordConnection(creds.webhookUrl, channel.name)
+      }
+
+      setTestStates((prev) => ({
+        ...prev,
+        [key]: result.success ? "success" : "error",
+      }))
     } catch {
       setTestStates((prev) => ({ ...prev, [key]: "error" }))
     }
@@ -1027,17 +1081,44 @@ function SettingsView({
     await refreshChannels()
   }
 
-  // Test topic — placeholder (Phase 8)
+  // Test topic — sends test message to specific Telegram topic
   const handleTestTopic = async (
     channelId: number,
     topicConfigId: number
   ) => {
     const key = `topic-${channelId}-${topicConfigId}`
     setTestStates((prev) => ({ ...prev, [key]: "loading" }))
-    // Phase 8: actual API calls
+    try {
+      const channel = channels.find((ch) => ch.id === channelId)
+      if (!channel || channel.type !== "telegram") {
+        setTestStates((prev) => ({ ...prev, [key]: "error" }))
+        return
+      }
+
+      const creds = channel.credentials as TelegramCredentials
+      const topic = creds.topics.find((t) => t.id === topicConfigId)
+      if (!topic) {
+        setTestStates((prev) => ({ ...prev, [key]: "error" }))
+        return
+      }
+
+      const result = await testTelegramTopicConnection(
+        creds.botToken,
+        creds.chatId,
+        parseInt(topic.topicId, 10),
+        topic.name
+      )
+
+      setTestStates((prev) => ({
+        ...prev,
+        [key]: result.success ? "success" : "error",
+      }))
+    } catch {
+      setTestStates((prev) => ({ ...prev, [key]: "error" }))
+    }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 2000)
+    }, 3000)
   }
 
   // Add thread
@@ -1065,17 +1146,43 @@ function SettingsView({
     await refreshChannels()
   }
 
-  // Test thread — placeholder (Phase 8)
+  // Test thread — sends test message to specific Discord thread
   const handleTestThread = async (
     channelId: number,
     threadConfigId: number
   ) => {
     const key = `thread-${channelId}-${threadConfigId}`
     setTestStates((prev) => ({ ...prev, [key]: "loading" }))
-    // Phase 8: actual API calls
+    try {
+      const channel = channels.find((ch) => ch.id === channelId)
+      if (!channel || channel.type !== "discord") {
+        setTestStates((prev) => ({ ...prev, [key]: "error" }))
+        return
+      }
+
+      const creds = channel.credentials as DiscordCredentials
+      const thread = creds.threads.find((t) => t.id === threadConfigId)
+      if (!thread) {
+        setTestStates((prev) => ({ ...prev, [key]: "error" }))
+        return
+      }
+
+      const result = await testDiscordThread(
+        creds.webhookUrl,
+        thread.threadId,
+        thread.name
+      )
+
+      setTestStates((prev) => ({
+        ...prev,
+        [key]: result.success ? "success" : "error",
+      }))
+    } catch {
+      setTestStates((prev) => ({ ...prev, [key]: "error" }))
+    }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 2000)
+    }, 3000)
   }
 
   // -----------------------------------------------------------------------
