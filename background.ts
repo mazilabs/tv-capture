@@ -182,12 +182,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (type === MESSAGE_TYPES.GET_STATUS) {
-    loadSettings()
-      .then((settings) => {
-        sendResponse({ configured: isConfigured(settings) })
+    Promise.all([loadSettings(), loadChannelStorage()])
+      .then(([settings, channelStorage]) => {
+        const channelCount = channelStorage.channels.length
+        const configured = channelCount > 0 || isConfigured(settings)
+        sendResponse({ configured, channelCount })
       })
       .catch(() => {
-        sendResponse({ configured: false })
+        sendResponse({ configured: false, channelCount: 0 })
       })
     return true // async response
   }

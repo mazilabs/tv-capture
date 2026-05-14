@@ -58,6 +58,7 @@ export type ExtensionMessage =
 
 export type StatusResponse = {
   configured: boolean
+  channelCount?: number
 }
 
 export type TestMessageResponse = {

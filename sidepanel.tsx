@@ -500,110 +500,117 @@ function CaptureView({
 
       {/* Scrollable: Message + Channels */}
       <div style={s.scrollableContent}>
-        {/* Message Section — only when screenshot captured */}
-        {screenshotUrl && (
-          <CollapsibleSection title="MESSAGE" defaultOpen={true}>
-            {/* Template Grid */}
-            {mode === "grid" && (
-              <div style={s.templateSection}>
-                <div style={s.tileRow}>
-                  <TemplateTile
-                    name="Custom"
-                    isSelected={isCustom && mode !== "grid"}
-                    onClick={() => {
-                      setIsCustom(true)
-                      setSelectedTemplateId(null)
-                      setCaption("")
-                      setMode("textarea")
-                    }}
-                  />
-                  <TemplateTile
-                    name="New Template"
-                    onClick={() => {
-                      setMode("form")
-                    }}
-                  />
-                </div>
-
-                {templates.length > 0 && (
-                  <div style={s.templateGrid}>
-                    {templates.map((template) => (
-                      <TemplateTile
-                        key={template.id}
-                        name={template.name}
-                        isSelected={selectedTemplateId === template.id}
-                        onClick={() => {
-                          setIsCustom(false)
-                          setSelectedTemplateId(template.id)
-                          setCaption(template.body)
-                          setMode("textarea")
-                        }}
-                      />
-                    ))}
+        {/* Message Section — always visible (OQ-1) */}
+        <CollapsibleSection title="MESSAGE" defaultOpen={true}>
+          {screenshotUrl ? (
+            <>
+              {/* Template Grid */}
+              {mode === "grid" && (
+                <div style={s.templateSection}>
+                  <div style={s.tileRow}>
+                    <TemplateTile
+                      name="Custom"
+                      isSelected={isCustom && mode !== "grid"}
+                      onClick={() => {
+                        setIsCustom(true)
+                        setSelectedTemplateId(null)
+                        setCaption("")
+                        setMode("textarea")
+                      }}
+                    />
+                    <TemplateTile
+                      name="New Template"
+                      onClick={() => {
+                        setMode("form")
+                      }}
+                    />
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* Textarea */}
-            {mode === "textarea" && (
-              <div style={s.textareaSection}>
-                <div style={s.tileRow}>
-                  <TemplateTile
-                    name={isCustom ? "Custom" : templates.find((t) => t.id === selectedTemplateId)?.name || ""}
-                    isSelected={true}
-                    onClick={() => {}}
-                  />
-                  <TemplateTile
-                    name="View All"
-                    onClick={() => {
+                  {templates.length > 0 && (
+                    <div style={s.templateGrid}>
+                      {templates.map((template) => (
+                        <TemplateTile
+                          key={template.id}
+                          name={template.name}
+                          isSelected={selectedTemplateId === template.id}
+                          onClick={() => {
+                            setIsCustom(false)
+                            setSelectedTemplateId(template.id)
+                            setCaption(template.body)
+                            setMode("textarea")
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Textarea */}
+              {mode === "textarea" && (
+                <div style={s.textareaSection}>
+                  <div style={s.tileRow}>
+                    <TemplateTile
+                      name={isCustom ? "Custom" : templates.find((t) => t.id === selectedTemplateId)?.name || ""}
+                      isSelected={true}
+                      onClick={() => {}}
+                    />
+                    <TemplateTile
+                      name="View All"
+                      onClick={() => {
+                        setMode("grid")
+                        setSelectedTemplateId(null)
+                        setIsCustom(false)
+                      }}
+                    />
+                  </div>
+
+                  <div style={s.textareaContainer}>
+                    <textarea
+                      style={caption.length > 1024 ? s.textareaError : s.textarea}
+                      value={caption}
+                      onChange={(e) => setCaption(e.target.value)}
+                      placeholder="Type your caption..."
+                      maxLength={1024}
+                      rows={6}
+                      onFocus={(e) => {
+                        if (caption.length <= 1024) {
+                          (e.target as HTMLTextAreaElement).style.borderColor = "#0d9488"
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (caption.length <= 1024) {
+                          (e.target as HTMLTextAreaElement).style.borderColor = "#3a3f4a"
+                        }
+                      }}
+                    />
+                    <div style={caption.length <= 1024 ? s.counter : s.counterError}>
+                      {caption.length}/1024 characters
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Form View */}
+              {mode === "form" && (
+                <div style={s.formSection}>
+                  <TemplateForm
+                    mode="create"
+                    onSave={handleCreateTemplate}
+                    onCancel={() => {
                       setMode("grid")
-                      setSelectedTemplateId(null)
-                      setIsCustom(false)
                     }}
                   />
                 </div>
-
-                <div style={s.textareaContainer}>
-                  <textarea
-                    style={caption.length > 1024 ? s.textareaError : s.textarea}
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Type your caption..."
-                    maxLength={1024}
-                    rows={6}
-                    onFocus={(e) => {
-                      if (caption.length <= 1024) {
-                        (e.target as HTMLTextAreaElement).style.borderColor = "#0d9488"
-                      }
-                    }}
-                    onBlur={(e) => {
-                      if (caption.length <= 1024) {
-                        (e.target as HTMLTextAreaElement).style.borderColor = "#3a3f4a"
-                      }
-                    }}
-                  />
-                  <div style={caption.length <= 1024 ? s.counter : s.counterError}>
-                    {caption.length}/1024 characters
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Form View */}
-            {mode === "form" && (
-              <div style={s.formSection}>
-                <TemplateForm
-                  mode="create"
-                  onSave={handleCreateTemplate}
-                  onCancel={() => {
-                    setMode("grid")
-                  }}
-                />
-              </div>
-            )}
-          </CollapsibleSection>
-        )}
+              )}
+            </>
+          ) : (
+            <div style={s.messagePlaceholder}>
+              <p style={s.messagePlaceholderIcon}>📸</p>
+              <p style={s.messagePlaceholderText}>Please take a screenshot first</p>
+            </div>
+          )}
+        </CollapsibleSection>
 
         {/* CHANNELS Section */}
         <CollapsibleSection title="CHANNELS" defaultOpen={true}>
@@ -2382,6 +2389,24 @@ const s: Record<string, React.CSSProperties> = {
     flexDirection: "column" as const,
     marginBottom: 12,
     minHeight: 0,
+  },
+  // MESSAGE section placeholder (OQ-1)
+  messagePlaceholder: {
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "32px 16px",
+    textAlign: "center" as const,
+  },
+  messagePlaceholderIcon: {
+    fontSize: 28,
+    margin: "0 0 8px",
+  },
+  messagePlaceholderText: {
+    fontSize: 13,
+    color: "#6b7280",
+    margin: 0,
   },
   // Action buttons
   captureButton: {

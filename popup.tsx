@@ -12,6 +12,7 @@ import { MESSAGE_TYPES } from "./lib-messages"
 
 function Popup() {
   const [configured, setConfigured] = useState(false)
+  const [channelCount, setChannelCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   // Check configuration status
@@ -21,6 +22,7 @@ function Popup() {
       (response) => {
         if (response) {
           setConfigured(response.configured)
+          setChannelCount(response.channelCount || 0)
         }
         setLoading(false)
       },
@@ -59,7 +61,7 @@ function Popup() {
   const statusLabel = loading
     ? "Checking..."
     : configured
-      ? "Configured"
+      ? `${channelCount} channel${channelCount !== 1 ? "s" : ""} configured`
       : "Not Configured"
 
   // Get current version from manifest
