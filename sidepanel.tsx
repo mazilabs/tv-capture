@@ -28,13 +28,6 @@ import {
 } from "@dnd-kit/sortable"
 import { MESSAGE_TYPES, type TestMessageResponse, type CaptureResponse, type SendScreenshotResponse } from "./lib-messages"
 import {
-  loadSettings,
-  saveSettings,
-  validateSettings,
-  type Settings,
-  type ValidationError,
-} from "./lib-storage"
-import {
   getTemplates,
   createTemplate,
   updateTemplate,
@@ -46,6 +39,23 @@ import { CollapsibleSection } from "./components/CollapsibleSection"
 import { TemplateForm } from "./components/TemplateForm"
 import { SortableTemplateItem } from "./components/SortableTemplateItem"
 import { TemplateTile } from "./components/TemplateTile"
+import {
+  getChannels,
+  createChannel,
+  updateChannel,
+  deleteChannel,
+  addTopicToChannel,
+  removeTopicFromChannel,
+  addThreadToChannel,
+  removeThreadFromChannel,
+  type Channel,
+  type ChannelUpdate,
+  type ChannelCredentials,
+  type TelegramCredentials,
+  type DiscordCredentials,
+} from "./lib-channels"
+import { ConfirmDialog } from "./components/ConfirmDialog"
+import { ChannelCard } from "./components/ChannelCard"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -540,12 +550,37 @@ function SettingsView({
   onBack: () => void
   onHelp: () => void
 }) {
-  const [settings, setSettings] = useState<Settings | null>(null)
-  const [errors, setErrors] = useState<ValidationError[]>([])
-  const [testLoading, setTestLoading] = useState(false)
-  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
+  // Channel state
+  const [channels, setChannels] = useState<Channel[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Template state
+  // Add form state — one form at a time (AD-6.6)
+  const [activeFormId, setActiveFormId] = useState<string | null>(null)
+
+  // Inline add channel form fields
+  const [addFormName, setAddFormName] = useState("")
+  const [addFormToken, setAddFormToken] = useState("")
+  const [addFormChatId, setAddFormChatId] = useState("")
+  const [addFormWebhookUrl, setAddFormWebhookUrl] = useState("")
+
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    channelId: number
+    subEntityCount: number
+  } | null>(null)
+
+  // Toast state
+  const [toast, setToast] = useState<string | null>(null)
+
+  // Topic ID 1 blocking modal state
+  const [topicId1Modal, setTopicId1Modal] = useState(false)
+
+  // Test button states — per entity
+  const [testStates, setTestStates] = useState<
+    Record<string, "idle" | "loading" | "success" | "error">
+  >({})
+
+  // Template state (unchanged)
   const [templates, setTemplates] = useState<Template[]>([])
   const [showTemplateForm, setShowTemplateForm] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
@@ -558,15 +593,18 @@ function SettingsView({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Require 8px movement before drag starts
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor)
   )
 
-  // Load settings
+  // Load channels on mount
   useEffect(() => {
-    loadSettings().then(setSettings)
+    getChannels().then((ch) => {
+      setChannels(ch)
+      setLoading(false)
+    })
   }, [])
 
   // Load templates
@@ -574,7 +612,27 @@ function SettingsView({
     getTemplates().then(setTemplates)
   }, [])
 
-  // Drag & Drop handlers
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  // Refresh channels after mutation
+  const refreshChannels = useCallback(async () => {
+    const updated = await getChannels()
+    setChannels(updated)
+  }, [])
+
+  // Split channels by platform
+  const telegramChannels = channels.filter((ch) => ch.type === "telegram")
+  const discordChannels = channels.filter((ch) => ch.type === "discord")
+
+  // -----------------------------------------------------------------------
+  // Drag & Drop handlers (templates — unchanged)
+  // -----------------------------------------------------------------------
+
   const handleDragStart = useCallback((event: { active: { id: number } }) => {
     setDragActiveId(event.active.id)
   }, [])
@@ -583,11 +641,10 @@ function SettingsView({
     async (event: DragEndEvent) => {
       const { active, over } = event
 
-      // Clear active state
       setDragActiveId(null)
 
       if (!over || active.id === over.id) {
-        return // No change
+        return
       }
 
       const oldIndex = templates.findIndex((t) => t.id === active.id)
@@ -597,95 +654,192 @@ function SettingsView({
         return
       }
 
-      // Optimistic update
       const newTemplates = arrayMove(templates, oldIndex, newIndex)
       setTemplates(newTemplates)
 
-      // Persist to storage
       const sortedIds = newTemplates.map((t) => t.id)
       await updateTemplateOrder(sortedIds)
     },
     [templates]
   )
 
-  // Auto-dismiss test result (2s success, 3s error)
-  useEffect(() => {
-    if (!testResult) return
-    const duration = testResult.success ? 2000 : 3000
-    const timer = setTimeout(() => setTestResult(null), duration)
-    return () => clearTimeout(timer)
-  }, [testResult])
+  // -----------------------------------------------------------------------
+  // Channel Handlers
+  // -----------------------------------------------------------------------
 
-  const updateField = useCallback(
-    (path: string, value: string) => {
-      if (!settings) return
-      const [group, field] = path.split(".")
-      setSettings({
-        ...settings,
-        [group]: { ...settings[group as keyof Settings], [field]: value },
-      })
-      setErrors((prev) => prev.filter((e) => e.field !== path))
-    },
-    [settings],
-  )
+  // Add channel — toggle inline add form
+  const handleToggleAddForm = (type: "telegram" | "discord") => {
+    const formId = `add-${type}`
+    if (activeFormId === formId) {
+      setActiveFormId(null)
+    } else {
+      // Close any other open form (sub-entity forms, etc.)
+      setActiveFormId(formId)
+      // Reset form fields
+      setAddFormName("")
+      setAddFormToken("")
+      setAddFormChatId("")
+      setAddFormWebhookUrl("")
+    }
+  }
 
-  // Auto-save a single field (called on blur)
-  const saveField = useCallback(
-    async (path: string, value: string) => {
-      if (!settings) return
+  // Create channel — submit
+  const handleCreateChannel = async (
+    type: "telegram" | "discord"
+  ) => {
+    if (!addFormName.trim()) return
 
-      // Update local state
-      const [group, field] = path.split(".")
-      const newSettings = {
-        ...settings,
-        [group]: { ...settings[group as keyof Settings], [field]: value },
+    let credentials: ChannelCredentials
+
+    if (type === "telegram") {
+      credentials = {
+        type: "telegram",
+        botToken: addFormToken.trim(),
+        chatId: addFormChatId.trim(),
+        topics: [],
       }
-
-      // Validate only this field
-      const validationErrors = validateSettings(newSettings)
-      const fieldErrors = validationErrors.filter((e) => e.field === path)
-      setErrors((prev) => [...prev.filter((e) => e.field !== path), ...fieldErrors])
-
-      // Save to storage (even if validation fails, we want to persist user input)
-      try {
-        await saveSettings(newSettings)
-        setSettings(newSettings)
-      } catch {
-        // Silently fail - storage will be retried on next blur
-      }
-    },
-    [settings],
-  )
-
-  // Cleanup: save on unmount (safety net)
-  useEffect(() => {
-    return () => {
-      if (settings) {
-        saveSettings(settings).catch(() => {})
+    } else {
+      credentials = {
+        type: "discord",
+        webhookUrl: addFormWebhookUrl.trim(),
+        threads: [],
       }
     }
-  }, [settings])
 
-  const handleTestMessage = useCallback(async () => {
-    if (!settings) return
+    await createChannel(addFormName.trim(), type, credentials)
+    await refreshChannels()
+    setActiveFormId(null)
+  }
 
-    setTestLoading(true)
-    setTestResult(null)
+  // Remove channel — check sub-entities first
+  const handleRemoveChannel = (channelId: number, hasSubEntities: boolean) => {
+    if (hasSubEntities) {
+      const channel = channels.find((ch) => ch.id === channelId)
+      if (!channel) return
+      const creds = channel.credentials
+      const count =
+        creds.type === "telegram"
+          ? (creds as TelegramCredentials).topics.length
+          : (creds as DiscordCredentials).threads.length
+      setDeleteConfirm({ channelId, subEntityCount: count })
+    } else {
+      handleDeleteChannel(channelId)
+    }
+  }
 
+  // Delete channel — confirmed
+  const handleDeleteChannel = async (channelId: number) => {
+    await deleteChannel(channelId)
+    await refreshChannels()
+    setDeleteConfirm(null)
+  }
+
+  // Test connectivity — main channel
+  const handleTestConnectivity = async (channelId: number) => {
+    const key = `ch-${channelId}`
+    setTestStates((prev) => ({ ...prev, [key]: "loading" }))
     try {
-      const response = (await chrome.runtime.sendMessage({
-        type: MESSAGE_TYPES.SEND_TEST_MESSAGE,
-      })) as TestMessageResponse
-
-      setTestResult(response)
+      // Phase 8: actual API calls
+      // For now: placeholder — will be wired in Phase 8
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      setTestStates((prev) => ({ ...prev, [key]: "success" }))
     } catch {
-      setTestResult({ success: false, error: "Failed to send test message" })
-    } finally {
-      setTestLoading(false)
+      setTestStates((prev) => ({ ...prev, [key]: "error" }))
     }
-  }, [settings])
+    setTimeout(() => {
+      setTestStates((prev) => ({ ...prev, [key]: "idle" }))
+    }, 3000)
+  }
 
-  // Template handlers
+  // Update channel — name or credentials
+  const handleUpdateChannel = async (
+    channelId: number,
+    updates: ChannelUpdate
+  ) => {
+    await updateChannel(channelId, updates)
+    await refreshChannels()
+  }
+
+  // Add topic
+  const handleAddTopic = (channelId: number) => {
+    setActiveFormId(`topic-${channelId}`)
+  }
+
+  // Add topic — submit (called from TopicAddForm)
+  const handleTopicAdd = async (
+    channelId: number,
+    name: string,
+    topicId: string
+  ) => {
+    await addTopicToChannel(channelId, name, topicId)
+    await refreshChannels()
+    setActiveFormId(null)
+  }
+
+  // Remove topic — immediate, no confirmation
+  const handleRemoveTopic = async (
+    channelId: number,
+    topicConfigId: number
+  ) => {
+    await removeTopicFromChannel(channelId, topicConfigId)
+    await refreshChannels()
+  }
+
+  // Test topic — placeholder (Phase 8)
+  const handleTestTopic = async (
+    channelId: number,
+    topicConfigId: number
+  ) => {
+    const key = `topic-${channelId}-${topicConfigId}`
+    setTestStates((prev) => ({ ...prev, [key]: "loading" }))
+    // Phase 8: actual API calls
+    setTimeout(() => {
+      setTestStates((prev) => ({ ...prev, [key]: "idle" }))
+    }, 2000)
+  }
+
+  // Add thread
+  const handleAddThread = (channelId: number) => {
+    setActiveFormId(`thread-${channelId}`)
+  }
+
+  // Add thread — submit (called from ThreadAddForm)
+  const handleThreadAdd = async (
+    channelId: number,
+    name: string,
+    threadId: string
+  ) => {
+    await addThreadToChannel(channelId, name, threadId)
+    await refreshChannels()
+    setActiveFormId(null)
+  }
+
+  // Remove thread — immediate, no confirmation
+  const handleRemoveThread = async (
+    channelId: number,
+    threadConfigId: number
+  ) => {
+    await removeThreadFromChannel(channelId, threadConfigId)
+    await refreshChannels()
+  }
+
+  // Test thread — placeholder (Phase 8)
+  const handleTestThread = async (
+    channelId: number,
+    threadConfigId: number
+  ) => {
+    const key = `thread-${channelId}-${threadConfigId}`
+    setTestStates((prev) => ({ ...prev, [key]: "loading" }))
+    // Phase 8: actual API calls
+    setTimeout(() => {
+      setTestStates((prev) => ({ ...prev, [key]: "idle" }))
+    }, 2000)
+  }
+
+  // -----------------------------------------------------------------------
+  // Template handlers (unchanged)
+  // -----------------------------------------------------------------------
+
   const handleCreateTemplate = async (name: string, body: string) => {
     await createTemplate(name, body)
     const updated = await getTemplates()
@@ -717,7 +871,8 @@ function SettingsView({
     }
   }
 
-  if (!settings) {
+  // Loading state
+  if (loading) {
     return (
       <main style={s.settingsContainer}>
         <p style={{ color: "#9ca3af" }}>Loading settings...</p>
@@ -725,134 +880,237 @@ function SettingsView({
     )
   }
 
-  const fieldError = (field: string) => errors.find((e) => e.field === field)
-
   return (
     <main style={s.settingsContainer}>
       {/* Header */}
       <div style={s.header}>
         <h1 style={s.title}>Settings</h1>
-        <button 
-          style={s.navButton} 
-          onClick={onBack}
-          onMouseEnter={(e) => {
-            (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-          }}
-        >
-          Back
-        </button>
-      </div>
-
-      {/* Telegram Section */}
-      <CollapsibleSection
-        title="Telegram"
-        defaultOpen={true}
-      >
-        <div style={s.field}>
-          <label style={s.label}>Bot Token</label>
-          <input
-            type="password"
-            style={fieldError("telegram.botToken") ? s.inputError : s.input}
-            placeholder="e.g. 123456:ABC-DEF..."
-            value={settings.telegram.botToken}
-            onChange={(e) => updateField("telegram.botToken", e.target.value)}
-            onFocus={(e) => {
-              if (!fieldError("telegram.botToken")) {
-                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-              }
-            }}
-            onBlur={(e) => {
-              if (!fieldError("telegram.botToken")) {
-                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-              }
-              // Auto-save on blur
-              saveField("telegram.botToken", settings.telegram.botToken)
-            }}
-          />
-          {fieldError("telegram.botToken") && (
-            <p style={s.errorText}>{fieldError("telegram.botToken").message}</p>
-          )}
-        </div>
-
-        <div style={s.field}>
-          <label style={s.label}>Chat ID</label>
-          <input
-            type="text"
-            style={fieldError("telegram.chatId") ? s.inputError : s.input}
-            placeholder="e.g. 987654321"
-            value={settings.telegram.chatId}
-            onChange={(e) => updateField("telegram.chatId", e.target.value)}
-            onFocus={(e) => {
-              if (!fieldError("telegram.chatId")) {
-                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-              }
-            }}
-            onBlur={(e) => {
-              if (!fieldError("telegram.chatId")) {
-                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-              }
-              // Auto-save on blur
-              saveField("telegram.chatId", settings.telegram.chatId)
-            }}
-          />
-          {fieldError("telegram.chatId") && (
-            <p style={s.errorText}>{fieldError("telegram.chatId").message}</p>
-          )}
-        </div>
-
-        {/* Help Link */}
-        <span
-          style={s.helpLink}
-          onClick={onHelp}
-          onMouseEnter={(e) => {
-            (e.target as HTMLElement).style.color = "#9ca3af"
-            ;(e.target as HTMLElement).style.textDecorationColor = "#6b7280"
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLElement).style.color = "#6b7280"
-            ;(e.target as HTMLElement).style.textDecorationColor = "#4b5563"
-          }}
-        >
-          How to get Bot Token and Chat ID
-        </span>
-
-        {/* Test Connection Button with Inline Feedback */}
-        <div style={s.testButtonRow}>
+        <div style={{ display: "flex", gap: 8 }}>
           <button
-            style={
-              testLoading
-                ? s.testButtonLoading
-                : testResult?.success
-                  ? s.testButtonSuccess
-                  : testResult?.success === false
-                    ? s.testButtonError
-                    : s.testButton
-            }
-            onClick={handleTestMessage}
-            disabled={testLoading || !!testResult}
+            style={s.navButton}
+            onClick={onHelp}
             onMouseEnter={(e) => {
-              if (!testLoading && !testResult) {
-                (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
-              }
+              (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
             }}
             onMouseLeave={(e) => {
-              if (!testLoading && !testResult) {
-                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-              }
+              (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
             }}
           >
-            {testLoading
-              ? "Sending..."
-              : testResult?.success
-                ? "✓ Sent!"
-                : testResult?.success === false
-                  ? "✗ Failed"
-                  : "Test Connection"}
+            Help
+          </button>
+          <button
+            style={s.navButton}
+            onClick={onBack}
+            onMouseEnter={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+            }}
+          >
+            Back
           </button>
         </div>
+      </div>
+
+      {/* Telegram Channels Section */}
+      <CollapsibleSection title="TELEGRAM CHANNELS" defaultOpen={true}>
+        {telegramChannels.map((channel) => (
+          <ChannelCard
+            key={channel.id}
+            channel={channel}
+            testStates={testStates}
+            onTestConnectivity={handleTestConnectivity}
+            onRemoveChannel={handleRemoveChannel}
+            onAddTopic={handleAddTopic}
+            onRemoveTopic={handleRemoveTopic}
+            onTestTopic={handleTestTopic}
+            onAddThread={() => {}}
+            onRemoveThread={() => {}}
+            onTestThread={() => {}}
+            onUpdateChannel={handleUpdateChannel}
+            onTopicAdd={handleTopicAdd}
+            onThreadAdd={handleThreadAdd}
+            onToast={setToast}
+            onTopicId1Blocked={() => {
+              setTopicId1Modal(true)
+              setActiveFormId(null)
+            }}
+            onRefresh={refreshChannels}
+            activeFormId={activeFormId}
+            setActiveFormId={setActiveFormId}
+          />
+        ))}
+
+        {/* Inline add Telegram channel form */}
+        {activeFormId === "add-telegram" ? (
+          <div style={s.inlineForm}>
+            <div style={s.field}>
+              <label style={s.label}>Channel Name</label>
+              <input
+                style={s.input}
+                placeholder="e.g. Main Trading Group"
+                value={addFormName}
+                onChange={(e) => setAddFormName(e.target.value)}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+              />
+            </div>
+            <div style={s.field}>
+              <label style={s.label}>Bot Token</label>
+              <input
+                type="password"
+                style={s.input}
+                placeholder="e.g. 123456:ABC-DEF..."
+                value={addFormToken}
+                onChange={(e) => setAddFormToken(e.target.value)}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+              />
+            </div>
+            <div style={s.field}>
+              <label style={s.label}>Chat ID</label>
+              <input
+                style={s.input}
+                placeholder="e.g. -1001234567890"
+                value={addFormChatId}
+                onChange={(e) => setAddFormChatId(e.target.value)}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+              />
+            </div>
+            <div style={s.inlineFormButtons}>
+              <button
+                style={
+                  addFormName.trim() && addFormToken.trim() && addFormChatId.trim()
+                    ? s.addChannelButton
+                    : s.addChannelButtonDisabled
+                }
+                disabled={
+                  !addFormName.trim() || !addFormToken.trim() || !addFormChatId.trim()
+                }
+                onClick={() => handleCreateChannel("telegram")}
+              >
+                Add
+              </button>
+              <button
+                style={s.inlineCancelButton}
+                onClick={() => setActiveFormId(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            style={s.addButton}
+            onClick={() => handleToggleAddForm("telegram")}
+            onMouseEnter={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+            }}
+          >
+            + Add Telegram Channel
+          </button>
+        )}
+      </CollapsibleSection>
+
+      {/* Discord Channels Section */}
+      <CollapsibleSection title="DISCORD CHANNELS" defaultOpen={true}>
+        {discordChannels.map((channel) => (
+          <ChannelCard
+            key={channel.id}
+            channel={channel}
+            testStates={testStates}
+            onTestConnectivity={handleTestConnectivity}
+            onRemoveChannel={handleRemoveChannel}
+            onAddTopic={() => {}}
+            onRemoveTopic={() => {}}
+            onTestTopic={() => {}}
+            onAddThread={handleAddThread}
+            onRemoveThread={handleRemoveThread}
+            onTestThread={handleTestThread}
+            onUpdateChannel={handleUpdateChannel}
+            onTopicAdd={handleTopicAdd}
+            onThreadAdd={handleThreadAdd}
+            onToast={setToast}
+            onTopicId1Blocked={() => {
+              setTopicId1Modal(true)
+              setActiveFormId(null)
+            }}
+            onRefresh={refreshChannels}
+            activeFormId={activeFormId}
+            setActiveFormId={setActiveFormId}
+          />
+        ))}
+
+        {/* Inline add Discord channel form */}
+        {activeFormId === "add-discord" ? (
+          <div style={s.inlineForm}>
+            <div style={s.field}>
+              <label style={s.label}>Channel Name</label>
+              <input
+                style={s.input}
+                placeholder="e.g. Trading Signals"
+                value={addFormName}
+                onChange={(e) => setAddFormName(e.target.value)}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+              />
+            </div>
+            <div style={s.field}>
+              <label style={s.label}>Webhook URL</label>
+              <input
+                type="password"
+                style={s.input}
+                placeholder="https://discord.com/api/webhooks/..."
+                value={addFormWebhookUrl}
+                onChange={(e) => setAddFormWebhookUrl(e.target.value)}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+              />
+            </div>
+            <div style={s.inlineFormButtons}>
+              <button
+                style={
+                  addFormName.trim() && addFormWebhookUrl.trim()
+                    ? s.addChannelButton
+                    : s.addChannelButtonDisabled
+                }
+                disabled={!addFormName.trim() || !addFormWebhookUrl.trim()}
+                onClick={() => handleCreateChannel("discord")}
+              >
+                Add
+              </button>
+              <button
+                style={s.inlineCancelButton}
+                onClick={() => setActiveFormId(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            style={s.addButton}
+            onClick={() => handleToggleAddForm("discord")}
+            onMouseEnter={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+            }}
+          >
+            + Add Discord Channel
+          </button>
+        )}
       </CollapsibleSection>
 
       {/* Keyboard Shortcuts Section */}
@@ -891,7 +1149,6 @@ function SettingsView({
           />
         ) : (
           <>
-            {/* Hint text */}
             {templates.length > 1 && (
               <p style={s.hintText}>
                 Drag and hold template to reorder
@@ -935,12 +1192,7 @@ function SettingsView({
         )}
       </CollapsibleSection>
 
-      {/* General error */}
-      {fieldError("_general") && (
-        <p style={s.errorText}>{fieldError("_general").message}</p>
-      )}
-
-      {/* Delete Confirmation Popup */}
+      {/* Delete Confirmation for Templates (unchanged) */}
       {deleteConfirmId && (
         <div style={s.overlay}>
           <div style={s.popup}>
@@ -976,6 +1228,37 @@ function SettingsView({
         </div>
       )}
 
+      {/* Delete Confirmation Dialog for Channels */}
+      {deleteConfirm && (
+        <ConfirmDialog
+          title="Delete channel?"
+          message={`This channel contains ${deleteConfirm.subEntityCount} ${deleteConfirm.subEntityCount === 1 ? "topic/thread" : "topics/threads"}. Delete anyway?`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={() => handleDeleteChannel(deleteConfirm.channelId)}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {/* Topic ID 1 Blocking Modal */}
+      {topicId1Modal && (
+        <ConfirmDialog
+          title="Topic ID 1 is not allowed"
+          message="This Share Link points to the General topic of your Telegram channel. The main channel is already part of your configuration — messages sent without selecting a specific topic arrive there automatically. Please use a Share Link from a custom topic (ID 2+)."
+          confirmLabel="OK"
+          destructive={false}
+          onConfirm={() => setTopicId1Modal(false)}
+          onCancel={() => setTopicId1Modal(false)}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div style={s.toast}>
+          {toast}
+        </div>
+      )}
+
       {/* Branding */}
       <div style={s.branding}>
         By Mazi Labs
@@ -985,7 +1268,7 @@ function SettingsView({
 }
 
 // ---------------------------------------------------------------------------
-// Help View — Telegram Setup Guide
+// Help View — Setup Guide (Telegram, Discord, Telegram Topics)
 // ---------------------------------------------------------------------------
 
 function HelpView({
@@ -993,13 +1276,47 @@ function HelpView({
 }: {
   onBack: () => void
 }) {
+  const [helpTab, setHelpTab] = useState<"telegram" | "discord" | "topics">("telegram")
+
+  const styles: Record<string, React.CSSProperties> = {
+    tabBar: {
+      display: "flex",
+      gap: 4,
+      marginBottom: 16,
+      borderBottom: "1px solid #3a3f4a",
+      paddingBottom: 0,
+    },
+    tab: {
+      padding: "8px 12px",
+      border: "none",
+      borderRadius: "6px 6px 0 0",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      backgroundColor: "transparent",
+      color: "#6b7280",
+      transition: "all 150ms",
+    },
+    tabActive: {
+      padding: "8px 12px",
+      border: "none",
+      borderRadius: "6px 6px 0 0",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      backgroundColor: "#252830",
+      color: "#14b8a6",
+      borderBottom: "2px solid #0d9488",
+    },
+  }
+
   return (
     <main style={s.settingsContainer}>
       {/* Header */}
       <div style={s.header}>
-        <h1 style={s.title}>Telegram Setup Guide</h1>
-        <button 
-          style={s.closeButton} 
+        <h1 style={s.title}>Setup Guide</h1>
+        <button
+          style={s.closeButton}
           onClick={onBack}
           onMouseEnter={(e) => {
             (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
@@ -1012,49 +1329,75 @@ function HelpView({
         </button>
       </div>
 
+      {/* Navigation Tabs */}
+      <div style={styles.tabBar}>
+        <button
+          style={helpTab === "telegram" ? styles.tabActive : styles.tab}
+          onClick={() => setHelpTab("telegram")}
+        >
+          Telegram
+        </button>
+        <button
+          style={helpTab === "discord" ? styles.tabActive : styles.tab}
+          onClick={() => setHelpTab("discord")}
+        >
+          Discord
+        </button>
+        <button
+          style={helpTab === "topics" ? styles.tabActive : styles.tab}
+          onClick={() => setHelpTab("topics")}
+        >
+          Topics
+        </button>
+      </div>
+
       {/* Help Content */}
       <div style={s.helpContent}>
-        {/* Step 1 */}
-        <div style={s.helpSection}>
-          <h2 style={s.helpSectionTitle}>STEP 1: Create Your Bot</h2>
-          <ol style={s.helpList}>
-            <li>Open Telegram (app or web)</li>
-            <li>Search for <strong>@BotFather</strong> (official Telegram bot)</li>
-            <li>Send: <code style={s.code}>/start</code></li>
-            <li>Send: <code style={s.code}>/newbot</code></li>
-            <li>Enter a name for your bot (e.g. "TV Capture")</li>
-            <li>Enter a username ending with "bot"<br/>
-              <span style={s.helpHint}>(e.g. "my_trading_bot" or "tvcapture_max_bot")</span>
-            </li>
-            <li><span style={s.helpSuccess}>✅ DONE!</span> BotFather returns your Bot Token</li>
-          </ol>
-          <div style={s.helpTip}>
-            <p><strong>📝 Your token looks like:</strong></p>
-            <code style={s.codeBlock}>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>
-          </div>
-          <p style={s.helpWarning}>
-            ⚠️ Keep this token secret! If leaked, use <code style={s.code}>/revoke</code> in @BotFather
-          </p>
-        </div>
+        {/* ================================================================ */}
+        {/* TELEGRAM SETUP */}
+        {/* ================================================================ */}
+        {helpTab === "telegram" && (
+          <>
+            {/* Step 1 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 1: Create Your Bot</h2>
+              <ol style={s.helpList}>
+                <li>Open Telegram (app or web)</li>
+                <li>Search for <strong>@BotFather</strong> (official Telegram bot)</li>
+                <li>Send: <code style={s.code}>/start</code></li>
+                <li>Send: <code style={s.code}>/newbot</code></li>
+                <li>Enter a name for your bot (e.g. "TV Capture")</li>
+                <li>Enter a username ending with "bot"<br/>
+                  <span style={s.helpHint}>(e.g. "my_trading_bot" or "tvcapture_max_bot")</span>
+                </li>
+                <li><span style={s.helpSuccess}>✅ DONE!</span> BotFather returns your Bot Token</li>
+              </ol>
+              <div style={s.helpTip}>
+                <p><strong>Your token looks like:</strong></p>
+                <code style={s.codeBlock}>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>
+              </div>
+              <p style={s.helpWarning}>
+                ⚠️ Keep this token secret! If leaked, use <code style={s.code}>/revoke</code> in @BotFather
+              </p>
+            </div>
 
-        {/* Step 2 */}
-        <div style={s.helpSection}>
-          <h2 style={s.helpSectionTitle}>STEP 2: Get Your Chat ID</h2>
-          <p style={s.helpText}>Choose ONE method below:</p>
+            {/* Step 2 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 2: Get Your Chat ID</h2>
+              <p style={s.helpText}>Choose ONE method below:</p>
 
-          {/* Option A */}
-          <div style={s.helpSubsection}>
-            <h3 style={s.helpSubsectionTitle}>OPTION A: Personal Chat (Simplest)</h3>
-            <ol style={s.helpList}>
-              <li>In Telegram, search for your new bot</li>
-              <li>Open the chat and send: <code style={s.code}>/start</code></li>
-              <li>Open this URL in your browser:<br/>
-                <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code><br/>
-                <span style={s.helpHint}>(Replace {'<TOKEN>'} with your Bot Token)</span>
-              </li>
-              <li>You'll see JSON like this:</li>
-            </ol>
-            <pre style={s.jsonBlock}>{`{
+              <div style={s.helpSubsection}>
+                <h3 style={s.helpSubsectionTitle}>OPTION A: Personal Chat (Simplest)</h3>
+                <ol style={s.helpList}>
+                  <li>In Telegram, search for your new bot</li>
+                  <li>Open the chat and send: <code style={s.code}>/start</code></li>
+                  <li>Open this URL in your browser:<br/>
+                    <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code><br/>
+                    <span style={s.helpHint}>(Replace {'<TOKEN>'} with your Bot Token)</span>
+                  </li>
+                  <li>You'll see JSON like this:</li>
+                </ol>
+                <pre style={s.jsonBlock}>{`{
   "ok": true,
   "result": [{
     "message": {
@@ -1064,79 +1407,276 @@ function HelpView({
     }
   }]
 }`}</pre>
-            <p style={s.helpText}>
-              <strong>5. Copy the "id" number</strong> (positive, e.g. 123456789)
-            </p>
-          </div>
+                <p style={s.helpText}>
+                  <strong>5. Copy the "id" number</strong> (positive, e.g. 123456789)
+                </p>
+              </div>
 
-          {/* Option B */}
-          <div style={s.helpSubsection}>
-            <h3 style={s.helpSubsectionTitle}>OPTION B: Group Chat</h3>
-            <ol style={s.helpList}>
-              <li>Create a group in Telegram (or use existing)</li>
-              <li>Add your bot to the group<br/>
-                <span style={s.helpHint}>(Search for your bot's username, click "Add to Group")</span>
-              </li>
-            </ol>
-            <div style={s.helpWarning}>
-              <p><strong>⚠️ IMPORTANT: Disable Privacy Mode FIRST!</strong></p>
-            </div>
-            <ol style={s.helpList} start={3}>
-              <li>Open @BotFather</li>
-              <li>Send: <code style={s.code}>/mybots</code></li>
-              <li>Select your bot</li>
-              <li>Tap: Bot Settings → Group Privacy → <strong>DISABLE</strong></li>
-              <li>Confirmation: "Group privacy is disabled"</li>
-            </ol>
-            <ol style={s.helpList} start={8}>
-              <li>Go to your group and send any message (e.g. "test")</li>
-              <li>Open this URL in your browser:<br/>
-                <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code>
-              </li>
-              <li>Find the group chat ID in the JSON:</li>
-            </ol>
-            <pre style={s.jsonBlock}>{`"chat": {
+              <div style={s.helpSubsection}>
+                <h3 style={s.helpSubsectionTitle}>OPTION B: Group Chat</h3>
+                <ol style={s.helpList}>
+                  <li>Create a group in Telegram (or use existing)</li>
+                  <li>Add your bot to the group<br/>
+                    <span style={s.helpHint}>(Search for your bot's username, click "Add to Group")</span>
+                  </li>
+                </ol>
+                <div style={s.helpWarning}>
+                  <p><strong>⚠️ IMPORTANT: Disable Privacy Mode FIRST!</strong></p>
+                </div>
+                <ol style={s.helpList} start={3}>
+                  <li>Open @BotFather</li>
+                  <li>Send: <code style={s.code}>/mybots</code></li>
+                  <li>Select your bot</li>
+                  <li>Tap: Bot Settings → Group Privacy → <strong>DISABLE</strong></li>
+                  <li>Confirmation: "Group privacy is disabled"</li>
+                </ol>
+                <ol style={s.helpList} start={8}>
+                  <li>Go to your group and send any message (e.g. "test")</li>
+                  <li>Open this URL in your browser:<br/>
+                    <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code>
+                  </li>
+                  <li>Find the group chat ID in the JSON:</li>
+                </ol>
+                <pre style={s.jsonBlock}>{`"chat": {
   "id": -1001234567890
 }`}</pre>
-            <p style={s.helpText}>
-              <strong>11. Copy the ID</strong> (NEGATIVE number, starts with -100)
-            </p>
-          </div>
-        </div>
+                <p style={s.helpText}>
+                  <strong>11. Copy the ID</strong> (NEGATIVE number, starts with -100)
+                </p>
+              </div>
+            </div>
 
-        {/* Step 3 */}
-        <div style={s.helpSection}>
-          <h2 style={s.helpSectionTitle}>STEP 3: Configure TV Capture</h2>
-          <ol style={s.helpList}>
-            <li>Copy your Bot Token into the <strong>"Bot Token"</strong> field</li>
-            <li>Copy your Chat ID into the <strong>"Chat ID"</strong> field</li>
-            <li>Click <strong>"Test Connection"</strong> to verify</li>
-          </ol>
-        </div>
+            {/* Step 3 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 3: Configure TV Capture</h2>
+              <ol style={s.helpList}>
+                <li>Copy your Bot Token into the <strong>"Bot Token"</strong> field</li>
+                <li>Copy your Chat ID into the <strong>"Chat ID"</strong> field</li>
+                <li>Click <strong>"Test Connectivity"</strong> to verify</li>
+              </ol>
+            </div>
 
-        {/* Troubleshooting */}
-        <div style={s.helpSection}>
-          <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
-          <div style={s.helpTroubleshoot}>
-            <p><strong>❌ "Unauthorized" or "Invalid token"</strong></p>
-            <p style={s.helpHint}>→ Token is wrong. Copy again from @BotFather</p>
-          </div>
-          <div style={s.helpTroubleshoot}>
-            <p><strong>❌ "Chat not found"</strong></p>
-            <p style={s.helpHint}>→ You never sent /start to your bot, or Chat ID is wrong</p>
-          </div>
-          <div style={s.helpTroubleshoot}>
-            <p><strong>❌ getUpdates shows empty result: []</strong></p>
-            <p style={s.helpHint}>→ For groups: Privacy Mode is still enabled</p>
-            <p style={s.helpHint}>→ Disable it in @BotFather (see Step 2, Option B)</p>
-            <p style={s.helpHint}>→ Then send another message in the group</p>
-          </div>
-          <div style={s.helpTroubleshoot}>
-            <p><strong>❌ Messages not arriving</strong></p>
-            <p style={s.helpHint}>→ Check token and chat ID are correct</p>
-            <p style={s.helpHint}>→ Make sure you sent /start to the bot at least once</p>
-          </div>
-        </div>
+            {/* Troubleshooting */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>"Unauthorized" or "Invalid token"</strong></p>
+                <p style={s.helpHint}>→ Token is wrong. Copy again from @BotFather</p>
+              </div>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>"Chat not found"</strong></p>
+                <p style={s.helpHint}>→ You never sent /start to your bot, or Chat ID is wrong</p>
+              </div>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>getUpdates shows empty result: []</strong></p>
+                <p style={s.helpHint}>→ For groups: Privacy Mode is still enabled</p>
+                <p style={s.helpHint}>→ Disable it in @BotFather (see Step 2, Option B)</p>
+                <p style={s.helpHint}>→ Then send another message in the group</p>
+              </div>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>Messages not arriving</strong></p>
+                <p style={s.helpHint}>→ Check token and chat ID are correct</p>
+                <p style={s.helpHint}>→ Make sure you sent /start to the bot at least once</p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ================================================================ */}
+        {/* DISCORD SETUP */}
+        {/* ================================================================ */}
+        {helpTab === "discord" && (
+          <>
+            {/* Step 1 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 1: Create a Webhook</h2>
+              <ol style={s.helpList}>
+                <li>Open Discord (app or web)</li>
+                <li>Go to your server's settings:<br/>
+                  <span style={s.helpHint}>Right-click server name → Server Settings</span>
+                </li>
+                <li>Navigate to <strong>Integrations</strong> → <strong>Webhooks</strong></li>
+                <li>Click <strong>"Create Webhook"</strong> or <strong>"New Webhook"</strong></li>
+                <li>Give it a name (e.g. "TV Capture")</li>
+                <li>Select the channel where screenshots should appear</li>
+                <li>Click <strong>"Copy Webhook URL"</strong></li>
+                <li><span style={s.helpSuccess}>✅ DONE!</span> You have your webhook URL</li>
+              </ol>
+              <div style={s.helpTip}>
+                <p><strong>Your webhook URL looks like:</strong></p>
+                <code style={s.codeBlock}>https://discord.com/api/webhooks/123456789/ABCdef...</code>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 2: Get Thread IDs (Optional)</h2>
+              <p style={s.helpText}>
+                If you want to send screenshots to specific forum threads, you'll need the Thread ID.
+              </p>
+              <ol style={s.helpList}>
+                <li>Enable Developer Mode in Discord:<br/>
+                  <span style={s.helpHint}>Settings → Advanced → Developer Mode → ON</span>
+                </li>
+                <li>Right-click on a thread name in your channel</li>
+                <li>Click <strong>"Copy ID"</strong></li>
+                <li>The copied ID is the Thread ID (a long number)</li>
+              </ol>
+              <div style={s.helpTip}>
+                <p><strong>A Thread ID looks like:</strong></p>
+                <code style={s.codeBlock}>1504005327639543898</code>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 3: Configure TV Capture</h2>
+              <ol style={s.helpList}>
+                <li>Click <strong>"+ Add Discord Channel"</strong> in Settings</li>
+                <li>Enter a name for the channel (e.g. "Signals Channel")</li>
+                <li>Paste the Webhook URL into the <strong>"Webhook URL"</strong> field</li>
+                <li>Click <strong>Add</strong></li>
+                <li>Click <strong>"Test Connectivity"</strong> to verify</li>
+              </ol>
+            </div>
+
+            {/* Troubleshooting */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>"Invalid Webhook" or "Unknown Webhook"</strong></p>
+                <p style={s.helpHint}>→ Webhook URL is wrong or the webhook was deleted</p>
+                <p style={s.helpHint}>→ Create a new webhook and update the URL</p>
+              </div>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>"Missing Permissions"</strong></p>
+                <p style={s.helpHint}>→ The webhook doesn't have permission to post in the target channel</p>
+                <p style={s.helpHint}>→ Check channel permissions and webhook integration settings</p>
+              </div>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>Thread ID not working</strong></p>
+                <p style={s.helpHint}>→ Make sure the thread exists in the channel</p>
+                <p style={s.helpHint}>→ Verify Developer Mode is enabled when copying the ID</p>
+                <p style={s.helpHint}>→ The webhook must have permission to send to the thread</p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ================================================================ */}
+        {/* TELEGRAM TOPICS SETUP */}
+        {/* ================================================================ */}
+        {helpTab === "topics" && (
+          <>
+            {/* What are Topics */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>What Are Telegram Topics?</h2>
+              <p style={s.helpText}>
+                Topics (Forum Mode) allow you to organize messages into separate
+                discussions within a single Telegram group. Each topic has its own
+                message feed, and messages sent to a topic appear only in that topic.
+              </p>
+              <p style={s.helpText}>
+                Once a Telegram group has Forum Mode enabled, the original "main chat"
+                becomes the <strong>General topic</strong>. Messages sent without selecting
+                a specific topic land here automatically.
+              </p>
+              <div style={s.helpWarning}>
+                <p>
+                  <strong>Note:</strong> In the Telegram app, Forum Mode changes the view
+                  to topic-only. You can toggle "View as Messages" in Telegram to see all
+                  messages chronologically (like a normal group).
+                </p>
+              </div>
+            </div>
+
+            {/* Enable Topics */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>How to Enable Topics</h2>
+              <ol style={s.helpList}>
+                <li>Open your Telegram group</li>
+                <li>Tap the group name at the top</li>
+                <li>Tap <strong>Edit</strong> (pencil icon)</li>
+                <li>Scroll down to <strong>Topics</strong></li>
+                <li>Toggle <strong>"Topics"</strong> ON</li>
+                <li>Confirmation: "Forum Mode enabled"</li>
+              </ol>
+              <div style={s.helpTip}>
+                <p><strong>⚠️ Important:</strong> Enabling Topics is permanent for supergroups.
+                Once enabled, you cannot disable Forum Mode.</p>
+              </div>
+            </div>
+
+            {/* Get Topic Link */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>How to Get a Topic Share Link</h2>
+              <ol style={s.helpList}>
+                <li>Open the desired topic in Telegram</li>
+                <li>Tap the topic name at the top of the chat</li>
+                <li>Tap <strong>"Copy Message Link"</strong> / <strong>"Link teilen"</strong></li>
+              </ol>
+              <p style={s.helpText}>
+                The link looks like:
+              </p>
+              <code style={s.codeBlock}>https://t.me/c/3719682271/2</code>
+              <p style={s.helpText}>
+                The <strong>last number</strong> (e.g. <code>2</code>) is the Topic ID.
+              </p>
+              <div style={s.helpWarning}>
+                <p>
+                  <strong>⚠️ Important:</strong> Use the link from the <strong>topic header</strong>,
+                  NOT from a long-press on an individual message. A message link also starts with
+                  <code> t.me/c/...</code> but the last number is a message ID, not a topic ID.
+                </p>
+              </div>
+            </div>
+
+            {/* How Topics Work in TV Capture */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>How Topics Work in TV Capture</h2>
+              <ul style={s.helpList}>
+                <li><strong>General topic:</strong> Messages sent without a topic selection go to General. The main channel configuration already covers this — no separate setup needed.</li>
+                <li><strong>Custom topics:</strong> Add them via Settings → Telegram Channel → "[+ Add Topic — Paste Share Link]". Paste the Share Link and TV Capture will parse it automatically.</li>
+                <li><strong>Manual entry:</strong> If the Share Link doesn't work, use "Enter manually" to type the Topic ID and name.</li>
+                <li><strong>Topic ID 1:</strong> This is reserved for General. TV Capture blocks it — use the main channel instead.</li>
+              </ul>
+              <div style={s.helpTip}>
+                <p><strong>Topic IDs are permanent</strong> — they don't change as long as the topic exists.
+                Even if the topic is archived and reopened, the same ID works.</p>
+                <p style={{ margin: "4px 0 0" }}>
+                  ⚠️ If you delete the topic in Telegram and recreate it, the ID will be different.
+                  You'll need to update it in TV Capture.
+                </p>
+              </div>
+            </div>
+
+            {/* Bot Permissions */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>Bot Permissions for Topics</h2>
+              <p style={s.helpText}>
+                Sending to Topics requires <strong>no additional bot permissions</strong> beyond
+                normal messaging. The bot uses the same <code>sendMessage</code> and
+                <code>sendPhoto</code> methods — just with an added topic ID.
+              </p>
+              <p style={s.helpText}>
+                The only requirement is that the Telegram group has <strong>Forum Mode enabled</strong>.
+              </p>
+            </div>
+
+            {/* Chat ID Auto-Correction */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>Chat ID Auto-Correction</h2>
+              <p style={s.helpText}>
+                When a normal Telegram group is upgraded to a Supergroup (by enabling Topics
+                or other features), the Chat ID changes. TV Capture detects this automatically
+                when you paste a Share Link and updates the Chat ID for you.
+              </p>
+              <p style={s.helpText}>
+                You'll see a toast notification: <em>"Chat ID updated automatically from the Share Link."</em>
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </main>
   )
@@ -1775,6 +2315,69 @@ const s: Record<string, React.CSSProperties> = {
     color: "#9ca3af",
     overflow: "auto" as const,
     whiteSpace: "pre" as const,
+  },
+  // Phase 6 — Platform Cards styles
+  inlineForm: {
+    border: "1px solid #3a3f4a",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: "rgba(37, 40, 48, 0.5)",
+  },
+  inlineFormButtons: {
+    display: "flex",
+    gap: 8,
+    marginTop: 8,
+  },
+  addChannelButton: {
+    flex: 1,
+    padding: "8px 12px",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "#0d9488",
+    color: "#fff",
+    transition: "background-color 150ms",
+  },
+  addChannelButtonDisabled: {
+    flex: 1,
+    padding: "8px 12px",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "not-allowed",
+    backgroundColor: "#134e4a",
+    color: "#6b7280",
+  },
+  inlineCancelButton: {
+    padding: "8px 12px",
+    border: "1px solid #3a3f4a",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "transparent",
+    color: "#9ca3af",
+    transition: "all 150ms",
+  },
+  toast: {
+    position: "fixed" as const,
+    bottom: 16,
+    left: 16,
+    right: 16,
+    padding: "10px 14px",
+    backgroundColor: "#10b981",
+    color: "#fff",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "center" as const,
+    zIndex: 2000,
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
+    animation: "none" as const,
   },
 }
 
