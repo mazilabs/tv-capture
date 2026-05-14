@@ -701,6 +701,81 @@ export async function getTopicsForChannel(
 }
 
 // ---------------------------------------------------------------------------
+// Send UI Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Update channel send order after drag & drop in Send UI.
+ * sortedIds is an array of channel IDs in their new order.
+ * Updates the sendOrder field (NOT the order field used by Settings).
+ */
+export async function updateChannelSendOrder(sortedIds: number[]): Promise<void> {
+  const storage = await loadChannelStorage()
+
+  sortedIds.forEach((id, index) => {
+    const channel = storage.channels.find((ch) => ch.id === id)
+    if (channel) {
+      channel.sendOrder = index
+    }
+  })
+
+  await saveChannelStorage(storage)
+}
+
+/**
+ * Get all channels sorted by sendOrder field.
+ * Used by Send UI for display order.
+ */
+export async function getChannelsSortedBySendOrder(): Promise<Channel[]> {
+  const storage = await loadChannelStorage()
+  return [...storage.channels].sort((a, b) => a.sendOrder - b.sendOrder)
+}
+
+/**
+ * Update sub-entity order after drag & drop within a Send UI card.
+ * sortedSubEntityIds is an array of TopicConfig.id or ThreadConfig.id in their new order.
+ * type determines whether to update topics (Telegram) or threads (Discord).
+ */
+export async function updateSubEntityOrder(
+  channelId: number,
+  sortedSubEntityIds: number[],
+  type: "topic" | "thread"
+): Promise<void> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (type === "topic") {
+    if (channel.type !== "telegram") {
+      throw new Error(`Cannot update topic order for non-Telegram channel`)
+    }
+    const creds = channel.credentials as TelegramCredentials
+    sortedSubEntityIds.forEach((subId, index) => {
+      const topic = creds.topics.find((t) => t.id === subId)
+      if (topic) {
+        topic.order = index
+      }
+    })
+  } else {
+    if (channel.type !== "discord") {
+      throw new Error(`Cannot update thread order for non-Discord channel`)
+    }
+    const creds = channel.credentials as DiscordCredentials
+    sortedSubEntityIds.forEach((subId, index) => {
+      const thread = creds.threads.find((t) => t.id === subId)
+      if (thread) {
+        thread.order = index
+      }
+    })
+  }
+
+  await saveChannelStorage(storage)
+}
+
+// ---------------------------------------------------------------------------
 // Chat ID Auto-Correction
 // ---------------------------------------------------------------------------
 

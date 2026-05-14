@@ -30,6 +30,9 @@ export const MESSAGE_TYPES = {
 
   // Send photo with optional caption (Phase 6)
   SEND_PHOTO_WITH_CAPTION: "send-photo-with-caption",
+
+  // Multi-channel send (Phase 8 contract — handler in Phase 8)
+  SEND_MULTI_CHANNEL: "send-multi-channel",
 } as const
 
 export type MessageType = (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES]
@@ -109,4 +112,35 @@ export type SendPhotoWithCaptionMessage = {
   type: typeof MESSAGE_TYPES.SEND_PHOTO_WITH_CAPTION
   dataUrl: string
   caption?: string
+}
+
+// ---------------------------------------------------------------------------
+// Multi-channel send (Phase 7 contract definition — Phase 8 implements handler)
+// ---------------------------------------------------------------------------
+
+/** A single send target within a multi-channel send. */
+export type SendTarget = {
+  channelId: number
+  subTargetType?: "topic" | "thread"   // undefined = main channel
+  subTargetId?: string                  // topicId or threadId
+}
+
+/** Message sent to background for multi-channel send. */
+export type SendMultiChannelMessage = {
+  type: typeof MESSAGE_TYPES.SEND_MULTI_CHANNEL
+  dataUrl: string
+  caption?: string
+  targets: SendTarget[]
+}
+
+/** Per-target result from multi-channel send. */
+export type SendTargetResult = {
+  target: SendTarget
+  success: boolean
+  error?: string
+}
+
+/** Response from multi-channel send. */
+export type SendMultiChannelResponse = {
+  results: SendTargetResult[]
 }

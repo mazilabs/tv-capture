@@ -25,8 +25,10 @@ import {
   SortableContext,
   verticalListSortingStrategy,
   arrayMove,
+  useSortable,
 } from "@dnd-kit/sortable"
-import { MESSAGE_TYPES, type TestMessageResponse, type CaptureResponse, type SendScreenshotResponse } from "./lib-messages"
+import { CSS } from "@dnd-kit/utilities"
+import { MESSAGE_TYPES, type CaptureResponse, type SendScreenshotResponse } from "./lib-messages"
 import {
   getTemplates,
   createTemplate,
@@ -48,6 +50,9 @@ import {
   removeTopicFromChannel,
   addThreadToChannel,
   removeThreadFromChannel,
+  getChannelsSortedBySendOrder,
+  updateChannelSendOrder,
+  updateSubEntityOrder,
   type Channel,
   type ChannelUpdate,
   type ChannelCredentials,
@@ -56,6 +61,7 @@ import {
 } from "./lib-channels"
 import { ConfirmDialog } from "./components/ConfirmDialog"
 import { ChannelCard } from "./components/ChannelCard"
+import { SendChannelCard } from "./components/SendChannelCard"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -115,9 +121,28 @@ function CaptureView({
   const [isCustom, setIsCustom] = useState(false)
   const [caption, setCaption] = useState("")
 
+  // Channel state (Send UI)
+  const [channels, setChannels] = useState<Channel[]>([])
+  const [channelsLoading, setChannelsLoading] = useState(true)
+
+  // Selection state (AD-7.2)
+  const [selectedChannels, setSelectedChannels] = useState<Set<number>>(new Set())
+  const [selectedSubEntities, setSelectedSubEntities] = useState<Set<string>>(new Set())
+
+  // Channel D&D state
+  const [channelDragActiveId, setChannelDragActiveId] = useState<number | null>(null)
+
   // Load templates on mount
   useEffect(() => {
     getTemplates().then(setTemplates)
+  }, [])
+
+  // Load channels on mount (sorted by sendOrder)
+  useEffect(() => {
+    getChannelsSortedBySendOrder().then((ch) => {
+      setChannels(ch)
+      setChannelsLoading(false)
+    })
   }, [])
 
   // Auto-dismiss send result after 5 seconds
@@ -134,11 +159,49 @@ function CaptureView({
     return () => clearTimeout(timer)
   }, [error])
 
-  // Listen for shortcut captures from background (Opt+S)
+  // -----------------------------------------------------------------------
+  // Selection Helpers (AD-7.2)
+  // -----------------------------------------------------------------------
+
+  const handleToggleChannel = useCallback((channelId: number) => {
+    setSelectedChannels((prev) => {
+      const next = new Set(prev)
+      if (next.has(channelId)) {
+        next.delete(channelId)
+      } else {
+        next.add(channelId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleToggleSubEntity = useCallback((channelId: number, subEntityId: number) => {
+    const key = `${channelId}:${subEntityId}`
+    setSelectedSubEntities((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }, [])
+
+  const clearSelections = useCallback(() => {
+    setSelectedChannels(new Set())
+    setSelectedSubEntities(new Set())
+  }, [])
+
+  const totalSelectedCount = selectedChannels.size + selectedSubEntities.size
+
+  // -----------------------------------------------------------------------
+  // Shortcut Capture Listener (Opt+S)
+  // -----------------------------------------------------------------------
+
   useEffect(() => {
     const listener = (message: { type: string; dataUrl?: string; cropped?: boolean }) => {
       if (message.type === MESSAGE_TYPES.SHORTCUT_CAPTURE && message.dataUrl) {
-        // Reload templates in case they changed in Settings
         getTemplates().then(setTemplates)
 
         setScreenshotUrl(message.dataUrl)
@@ -149,16 +212,20 @@ function CaptureView({
         setSelectedTemplateId(null)
         setIsCustom(false)
         setCaption("")
+        clearSelections()
+        // Reload channels in case they changed in Settings
+        getChannelsSortedBySendOrder().then(setChannels)
       }
     }
     chrome.runtime.onMessage.addListener(listener)
     return () => chrome.runtime.onMessage.removeListener(listener)
-  }, [])
+  }, [clearSelections])
 
   const handleCapture = useCallback(async () => {
     setCaptureState("capturing")
     setError(null)
     setSendResult(null)
+    clearSelections()
 
     try {
       const response = (await chrome.runtime.sendMessage({
@@ -177,75 +244,67 @@ function CaptureView({
       setError("Failed to capture screenshot")
       setCaptureState("idle")
     }
-  }, [])
+  }, [clearSelections])
 
-  // Send screenshot only (no caption)
-  const handleSendScreenshotOnly = useCallback(async () => {
-    if (!screenshotUrl) return
+  // -----------------------------------------------------------------------
+  // Handle Send (Phase 7: backward compatible — sends to first selected target)
+  // -----------------------------------------------------------------------
+
+  const handleSend = useCallback(async () => {
+    if (!screenshotUrl || totalSelectedCount === 0) return
 
     setCaptureState("sending")
     setSendResult(null)
 
-    try {
-      const response = (await chrome.runtime.sendMessage({
-        type: MESSAGE_TYPES.SEND_PHOTO_WITH_CAPTION,
-        dataUrl: screenshotUrl,
-        // No caption
-      })) as SendScreenshotResponse
+    // Phase 7: Send to first selected target only (backward compatible via existing SEND_PHOTO_WITH_CAPTION)
+    // Phase 8: Will send to all targets via SEND_MULTI_CHANNEL
 
-      setSendResult(response)
+    // Determine first target
+    let targetChannelId: number | null = null
 
-      if (response.success) {
-        // Clear and return to idle
-        setScreenshotUrl(null)
-        setCaptureState("idle")
-        setMode("grid")
-        setSelectedTemplateId(null)
-        setIsCustom(false)
-        setCaption("")
-      } else {
-        setCaptureState("captured")
+    if (selectedChannels.size > 0) {
+      targetChannelId = selectedChannels.values().next().value
+    } else {
+      // Must be a sub-entity selected
+      const firstKey = selectedSubEntities.values().next().value
+      if (firstKey) {
+        const [chId] = firstKey.split(":")
+        targetChannelId = parseInt(chId)
       }
-    } catch {
-      setSendResult({ success: false, error: "Failed to send screenshot" })
-      setCaptureState("captured")
     }
-  }, [screenshotUrl])
 
-  // Send with caption
-  const handleSendWithCaption = useCallback(async () => {
-    if (!screenshotUrl) return
-    if (caption.length > 1024) return
-
-    setCaptureState("sending")
-    setSendResult(null)
+    if (!targetChannelId) {
+      setSendResult({ success: false, error: "No target selected" })
+      setCaptureState("captured")
+      return
+    }
 
     try {
+      // Phase 7: Use existing SEND_PHOTO_WITH_CAPTION (single target)
       const response = (await chrome.runtime.sendMessage({
         type: MESSAGE_TYPES.SEND_PHOTO_WITH_CAPTION,
         dataUrl: screenshotUrl,
-        caption: caption,
+        caption: caption || undefined,
       })) as SendScreenshotResponse
 
       setSendResult(response)
 
       if (response.success) {
-        // Clear and return to idle
         setScreenshotUrl(null)
         setCaptureState("idle")
         setMode("grid")
         setSelectedTemplateId(null)
         setIsCustom(false)
         setCaption("")
+        clearSelections()
       } else {
-        // Stay in textarea mode for retry
         setCaptureState("captured")
       }
     } catch {
       setSendResult({ success: false, error: "Failed to send" })
       setCaptureState("captured")
     }
-  }, [screenshotUrl, caption])
+  }, [screenshotUrl, caption, totalSelectedCount, selectedChannels, selectedSubEntities, clearSelections])
 
   const handleCancel = useCallback(() => {
     setScreenshotUrl(null)
@@ -256,7 +315,8 @@ function CaptureView({
     setSelectedTemplateId(null)
     setIsCustom(false)
     setCaption("")
-  }, [])
+    clearSelections()
+  }, [clearSelections])
 
   // Create new template from form
   const handleCreateTemplate = useCallback(async (name: string, body: string) => {
@@ -266,12 +326,106 @@ function CaptureView({
     setMode("grid")
   }, [])
 
+  // -----------------------------------------------------------------------
+  // Sub-entity helper
+  // -----------------------------------------------------------------------
+
+  const getSubEntitiesForSend = useCallback(
+    (channel: Channel): Array<{ id: number; name: string }> => {
+      if (channel.type === "telegram") {
+        const creds = channel.credentials as TelegramCredentials
+        return creds.topics
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((t) => ({ id: t.id, name: t.name }))
+      } else {
+        const creds = channel.credentials as DiscordCredentials
+        return creds.threads
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((t) => ({ id: t.id, name: t.name }))
+      }
+    },
+    []
+  )
+
+  // -----------------------------------------------------------------------
+  // Channel-Level D&D (Step 9)
+  // -----------------------------------------------------------------------
+
+  const channelSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor)
+  )
+
+  const handleChannelDragStart = useCallback((event: { active: { id: number } }) => {
+    setChannelDragActiveId(event.active.id)
+  }, [])
+
+  const handleChannelDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event
+      setChannelDragActiveId(null)
+
+      if (!over || active.id === over.id) return
+
+      const oldIndex = channels.findIndex((ch) => ch.id === active.id)
+      const newIndex = channels.findIndex((ch) => ch.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const reordered = arrayMove(channels, oldIndex, newIndex)
+      setChannels(reordered)
+
+      // Persist new sendOrder
+      const sortedIds = reordered.map((ch) => ch.id)
+      await updateChannelSendOrder(sortedIds)
+    },
+    [channels]
+  )
+
+  // -----------------------------------------------------------------------
+  // Sub-Entity-Level D&D (Step 10)
+  // -----------------------------------------------------------------------
+
+  const handleSubEntityDragEnd = useCallback(
+    async (channelId: number, event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const channel = channels.find((ch) => ch.id === channelId)
+      if (!channel) return
+
+      const type: "topic" | "thread" = channel.type === "telegram" ? "topic" : "thread"
+      const creds = channel.credentials as TelegramCredentials | DiscordCredentials
+      const subEntities =
+        type === "topic"
+          ? (creds as TelegramCredentials).topics
+          : (creds as DiscordCredentials).threads
+
+      const oldIndex = subEntities.findIndex((s) => s.id === active.id)
+      const newIndex = subEntities.findIndex((s) => s.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const reordered = arrayMove(subEntities, oldIndex, newIndex)
+      const sortedIds = reordered.map((s) => s.id)
+
+      // Persist new order
+      await updateSubEntityOrder(channelId, sortedIds, type)
+
+      // Refresh channels to get updated order
+      const updated = await getChannelsSortedBySendOrder()
+      setChannels(updated)
+    },
+    [channels]
+  )
+
   return (
-    <main style={s.container}>
+    <main style={{ ...s.container, position: "relative" }}>
+      {/* Fixed: Header */}
       <div style={s.header}>
         <h1 style={s.title}>TV Capture</h1>
-        <button 
-          style={s.navButton} 
+        <button
+          style={s.navButton}
           onClick={onSettings}
           onMouseEnter={(e) => {
             (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
@@ -284,7 +438,7 @@ function CaptureView({
         </button>
       </div>
 
-      {/* Screenshot Preview */}
+      {/* Fixed: Screenshot Preview */}
       <div style={{
         ...s.previewContainer,
         backgroundColor: screenshotUrl ? "transparent" : "rgba(40, 48, 56, 0.5)",
@@ -317,112 +471,177 @@ function CaptureView({
         )}
       </div>
 
-      {/* Template Views (only when screenshot captured) */}
-      {screenshotUrl && mode === "grid" && (
-        <div style={s.templateSection}>
-          {/* Special Tiles Row */}
-          <div style={s.tileRow}>
-            <TemplateTile
-              name="Custom"
-              isSelected={isCustom && mode !== "grid"}
-              onClick={() => {
-                setIsCustom(true)
-                setSelectedTemplateId(null)
-                setCaption("")
-                setMode("textarea")
-              }}
-            />
-            <TemplateTile
-              name="New Template"
-              onClick={() => {
-                setMode("form")
-              }}
-            />
-          </div>
+      {/* Scrollable: Message + Channels */}
+      <div style={s.scrollableContent}>
+        {/* Message Section — only when screenshot captured */}
+        {screenshotUrl && (
+          <CollapsibleSection title="MESSAGE" defaultOpen={true}>
+            {/* Template Grid */}
+            {mode === "grid" && (
+              <div style={s.templateSection}>
+                <div style={s.tileRow}>
+                  <TemplateTile
+                    name="Custom"
+                    isSelected={isCustom && mode !== "grid"}
+                    onClick={() => {
+                      setIsCustom(true)
+                      setSelectedTemplateId(null)
+                      setCaption("")
+                      setMode("textarea")
+                    }}
+                  />
+                  <TemplateTile
+                    name="New Template"
+                    onClick={() => {
+                      setMode("form")
+                    }}
+                  />
+                </div>
 
-          {/* User Templates */}
-          {templates.length > 0 && (
-            <div style={s.templateGrid}>
-              {templates.map((template) => (
-                <TemplateTile
-                  key={template.id}
-                  name={template.name}
-                  isSelected={selectedTemplateId === template.id}
-                  onClick={() => {
-                    setIsCustom(false)
-                    setSelectedTemplateId(template.id)
-                    setCaption(template.body)
-                    setMode("textarea")
+                {templates.length > 0 && (
+                  <div style={s.templateGrid}>
+                    {templates.map((template) => (
+                      <TemplateTile
+                        key={template.id}
+                        name={template.name}
+                        isSelected={selectedTemplateId === template.id}
+                        onClick={() => {
+                          setIsCustom(false)
+                          setSelectedTemplateId(template.id)
+                          setCaption(template.body)
+                          setMode("textarea")
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Textarea */}
+            {mode === "textarea" && (
+              <div style={s.textareaSection}>
+                <div style={s.tileRow}>
+                  <TemplateTile
+                    name={isCustom ? "Custom" : templates.find((t) => t.id === selectedTemplateId)?.name || ""}
+                    isSelected={true}
+                    onClick={() => {}}
+                  />
+                  <TemplateTile
+                    name="View All"
+                    onClick={() => {
+                      setMode("grid")
+                      setSelectedTemplateId(null)
+                      setIsCustom(false)
+                    }}
+                  />
+                </div>
+
+                <div style={s.textareaContainer}>
+                  <textarea
+                    style={caption.length > 1024 ? s.textareaError : s.textarea}
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Type your caption..."
+                    maxLength={1024}
+                    rows={6}
+                    onFocus={(e) => {
+                      if (caption.length <= 1024) {
+                        (e.target as HTMLTextAreaElement).style.borderColor = "#0d9488"
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (caption.length <= 1024) {
+                        (e.target as HTMLTextAreaElement).style.borderColor = "#3a3f4a"
+                      }
+                    }}
+                  />
+                  <div style={caption.length <= 1024 ? s.counter : s.counterError}>
+                    {caption.length}/1024 characters
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Form View */}
+            {mode === "form" && (
+              <div style={s.formSection}>
+                <TemplateForm
+                  mode="create"
+                  onSave={handleCreateTemplate}
+                  onCancel={() => {
+                    setMode("grid")
                   }}
                 />
-              ))}
-            </div>
+              </div>
+            )}
+          </CollapsibleSection>
+        )}
+
+        {/* CHANNELS Section */}
+        <CollapsibleSection title="CHANNELS" defaultOpen={true}>
+          {channelsLoading ? (
+            <p style={s.loadingText}>Loading channels...</p>
+          ) : channels.length === 0 ? (
+            <>
+              <p style={s.emptyText}>No channels configured</p>
+              <p style={s.emptySubText}>
+                Add channels in{" "}
+                <span
+                  style={{ color: "#14b8a6", cursor: "pointer", textDecoration: "underline" }}
+                  onClick={() => onSettings()}
+                >
+                  Settings
+                </span>
+              </p>
+            </>
+          ) : (
+            <>
+              <DndContext
+                sensors={channelSensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleChannelDragStart}
+                onDragEnd={handleChannelDragEnd}
+              >
+                <SortableContext
+                  items={channels.map((ch) => ch.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {channels.map((channel) => {
+                    const subEntities = getSubEntitiesForSend(channel)
+                    const subEntityIds = subEntities.map((s) => s.id)
+                    return (
+                      <SortableSendChannelCard
+                        key={channel.id}
+                        channel={channel}
+                        selected={selectedChannels.has(channel.id)}
+                        onToggleMain={() => handleToggleChannel(channel.id)}
+                        selectedSubEntities={selectedSubEntities}
+                        onToggleSubEntity={handleToggleSubEntity}
+                        subEntities={subEntities}
+                        subEntityIds={subEntityIds}
+                        onSubEntityDragEnd={handleSubEntityDragEnd}
+                        dragActiveId={channelDragActiveId}
+                      />
+                    )
+                  })}
+                </SortableContext>
+              </DndContext>
+            </>
           )}
-        </div>
-      )}
 
-      {/* Textarea View */}
-      {screenshotUrl && mode === "textarea" && (
-        <div style={s.textareaSection}>
-          {/* Selected Template Info */}
-          <div style={s.tileRow}>
-            <TemplateTile
-              name={isCustom ? "Custom" : templates.find((t) => t.id === selectedTemplateId)?.name || ""}
-              isSelected={true}
-              onClick={() => {}}
-            />
-            <TemplateTile
-              name="View All"
-              onClick={() => {
-                setMode("grid")
-                setSelectedTemplateId(null)
-                setIsCustom(false)
-              }}
-            />
-          </div>
+          {/* + Add Channel shortcut */}
+          <button
+            style={s.addChannelShortcut}
+            onClick={() => onSettings()}
+          >
+            + Add Channel
+          </button>
+        </CollapsibleSection>
+      </div>
 
-          {/* Caption Textarea */}
-          <div style={s.textareaContainer}>
-            <textarea
-              style={caption.length > 1024 ? s.textareaError : s.textarea}
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder="Type your caption..."
-              maxLength={1024}
-              rows={6}
-              onFocus={(e) => {
-                if (caption.length <= 1024) {
-                  (e.target as HTMLTextAreaElement).style.borderColor = "#0d9488"
-                }
-              }}
-              onBlur={(e) => {
-                if (caption.length <= 1024) {
-                  (e.target as HTMLTextAreaElement).style.borderColor = "#3a3f4a"
-                }
-              }}
-            />
-            <div style={caption.length <= 1024 ? s.counter : s.counterError}>
-              {caption.length}/1024 characters
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Form View (New Template) */}
-      {screenshotUrl && mode === "form" && (
-        <div style={s.formSection}>
-          <TemplateForm
-            mode="create"
-            onSave={handleCreateTemplate}
-            onCancel={() => {
-              setMode("grid")
-            }}
-          />
-        </div>
-      )}
-
-      {/* Action Buttons */}
-      <div style={s.buttonRow}>
+      {/* Fixed: Bottom Button Bar */}
+      <div style={s.bottomBar}>
         {captureState === "idle" && !screenshotUrl && (
           <button
             style={s.captureButton}
@@ -439,61 +658,29 @@ function CaptureView({
         )}
 
         {captureState === "capturing" && (
-          <button
-            style={s.buttonLoading}
-            disabled
-          >
-            Capturing...
-          </button>
+          <button style={s.buttonLoading} disabled>Capturing...</button>
         )}
 
-        {captureState === "captured" && mode === "grid" && screenshotUrl && (
-          <>
+        {captureState === "captured" && screenshotUrl && (
+          <div style={{ display: "flex", gap: 8 }}>
             <button
-              style={s.sendButton}
-              onClick={handleSendScreenshotOnly}
+              style={totalSelectedCount > 0 ? s.sendButton : s.sendButtonDisabled}
+              disabled={totalSelectedCount === 0 || captureState === "sending"}
+              onClick={handleSend}
               onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "#059669"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "#10b981"
-              }}
-            >
-              Send Screenshot Only
-            </button>
-            <button
-              style={s.cancelButton}
-              onClick={handleCancel}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-              }}
-            >
-              Cancel
-            </button>
-          </>
-        )}
-
-        {captureState === "captured" && mode === "textarea" && screenshotUrl && (
-          <>
-            <button
-              style={caption.length <= 1024 ? s.sendButton : s.sendButtonDisabled}
-              disabled={caption.length > 1024 || captureState === "sending"}
-              onClick={handleSendWithCaption}
-              onMouseEnter={(e) => {
-                if (caption.length <= 1024) {
+                if (totalSelectedCount > 0) {
                   (e.target as HTMLButtonElement).style.backgroundColor = "#059669"
                 }
               }}
               onMouseLeave={(e) => {
-                if (caption.length <= 1024) {
+                if (totalSelectedCount > 0) {
                   (e.target as HTMLButtonElement).style.backgroundColor = "#10b981"
                 }
               }}
             >
-              {captureState === "sending" ? "Sending..." : "Send"}
+              {captureState === "sending"
+                ? "Sending..."
+                : `SEND TO SELECTED (${totalSelectedCount})`}
             </button>
             <button
               style={s.cancelButton}
@@ -507,35 +694,90 @@ function CaptureView({
             >
               Cancel
             </button>
-          </>
-        )}
-
-        {captureState === "sending" && mode !== "textarea" && (
-          <button
-            style={s.buttonLoading}
-            disabled
-          >
-            Sending...
-          </button>
+          </div>
         )}
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div style={s.errorMessage}>
-          {error}
-        </div>
-      )}
-
-      {/* Send Result */}
-      {sendResult && (
-        <div style={sendResult.success ? s.sendSuccess : s.sendError}>
-          {sendResult.success
-            ? "Screenshot sent to Telegram!"
-            : sendResult.error}
+      {/* Toast-like messages — absolute positioned */}
+      {(error || sendResult) && (
+        <div style={{
+          position: "absolute",
+          bottom: 60,
+          left: 16,
+          right: 16,
+          zIndex: 1000,
+        }}>
+          {error && <div style={s.errorMessage}>{error}</div>}
+          {sendResult && (
+            <div style={sendResult.success ? s.sendSuccess : s.sendError}>
+              {sendResult.success
+                ? "Screenshot sent!"
+                : sendResult.error}
+            </div>
+          )}
         </div>
       )}
     </main>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// SortableSendChannelCard — sortable wrapper for channel-level D&D
+// ---------------------------------------------------------------------------
+
+function SortableSendChannelCard({
+  channel,
+  selected,
+  onToggleMain,
+  selectedSubEntities,
+  onToggleSubEntity,
+  subEntities,
+  subEntityIds,
+  onSubEntityDragEnd,
+  dragActiveId,
+}: {
+  channel: Channel
+  selected: boolean
+  onToggleMain: () => void
+  selectedSubEntities: Set<string>
+  onToggleSubEntity: (channelId: number, subEntityId: number) => void
+  subEntities: Array<{ id: number; name: string }>
+  subEntityIds: number[]
+  onSubEntityDragEnd: (channelId: number, event: DragEndEvent) => void
+  dragActiveId: number | null
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: channel.id })
+
+  const isOtherDragging = dragActiveId !== null && dragActiveId !== channel.id && !isDragging
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isOtherDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : undefined,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <SendChannelCard
+        channel={channel}
+        selected={selected}
+        onToggleMain={onToggleMain}
+        selectedSubEntities={selectedSubEntities}
+        onToggleSubEntity={onToggleSubEntity}
+        subEntities={subEntities}
+        subEntityIds={subEntityIds}
+        dragHandleProps={{ attributes, listeners }}
+        onSubEntityDragEnd={onSubEntityDragEnd}
+      />
+    </div>
   )
 }
 
@@ -1701,8 +1943,9 @@ const s: Record<string, React.CSSProperties> = {
     height: "100vh",
     boxSizing: "border-box" as const,
     // Hide scrollbar completely
-    overflowY: "auto" as const,
-    scrollbarWidth: "none" as const, // Firefox
+    overflow: "hidden" as const, // Change from auto to hidden — scrollableContent handles scrolling
+    scrollbarWidth: "none" as const,
+    position: "relative" as const, // For absolute-positioned toast messages
   },
   // Container for settings view (no flex, normal flow)
   settingsContainer: {
@@ -1800,6 +2043,51 @@ const s: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     flexShrink: 0,
     marginTop: "auto" as const,
+  },
+  // Send UI — new layout styles
+  scrollableContent: {
+    flex: 1,
+    overflowY: "auto" as const,
+    padding: "0 0 0 0", // Container already provides 16px padding
+    minHeight: 0, // Allow shrinking
+    // Hide scrollbar
+    scrollbarWidth: "none" as const,
+  },
+  bottomBar: {
+    padding: "12px 16px",
+    borderTop: "1px solid #2c3038",
+    flexShrink: 0,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: "#6b7280",
+    textAlign: "center" as const,
+    padding: "16px 0",
+  },
+  emptyText: {
+    fontSize: 13,
+    color: "#6b7280",
+    textAlign: "center" as const,
+    padding: "16px 0 4px",
+  },
+  emptySubText: {
+    fontSize: 12,
+    color: "#6b7280",
+    textAlign: "center" as const,
+    marginBottom: 8,
+  },
+  addChannelShortcut: {
+    width: "100%",
+    padding: "8px 12px",
+    border: "1px dashed #3a3f4a",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "transparent",
+    color: "#6b7280",
+    marginTop: 8,
+    transition: "all 150ms",
   },
   // Test message styles - Button with inline feedback
   testButtonRow: {
