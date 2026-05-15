@@ -210,17 +210,20 @@ export function TopicAddForm({
       {(mode === "shareLink" || mode === "parsed") && (
         <div style={styles.field}>
           <label style={styles.label}>Telegram Link</label>
-          <input
-            style={styles.input}
-            placeholder="https://t.me/c/3719682271/2"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            onBlur={handleParseLink}
-            onFocus={(e) => {
-              (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-            }}
-            disabled={mode === "parsed"}
-          />
+            <input
+              style={styles.input}
+              placeholder="https://t.me/c/3719682271/2"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              onBlur={(e) => {
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                handleParseLink()
+              }}
+              onFocus={(e) => {
+                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+              }}
+              disabled={mode === "parsed"}
+            />
           {/* Info box for Share Link */}
           {mode === "shareLink" && (
             <div style={styles.infoBox}>
@@ -259,6 +262,9 @@ export function TopicAddForm({
               onChange={(e) => setTopicName(e.target.value)}
               onFocus={(e) => {
                 (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+              }}
+              onBlur={(e) => {
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }}
             />
           </div>
@@ -313,6 +319,9 @@ export function TopicAddForm({
               onFocus={(e) => {
                 (e.target as HTMLInputElement).style.borderColor = "#0d9488"
               }}
+              onBlur={(e) => {
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+              }}
             />
           </div>
           <div style={styles.field}>
@@ -324,6 +333,9 @@ export function TopicAddForm({
               onChange={(e) => setTopicName(e.target.value)}
               onFocus={(e) => {
                 (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+              }}
+              onBlur={(e) => {
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }}
             />
           </div>

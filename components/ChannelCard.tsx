@@ -14,7 +14,7 @@
  *   when updating to preserve sub-entities.
  */
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import type { Channel, ChannelUpdate, TelegramCredentials, DiscordCredentials, TopicConfig, ThreadConfig } from "../lib-channels"
 import { CHANNEL_PREFIX } from "../lib-channels"
 import { SubEntityList } from "./SubEntityList"
@@ -24,6 +24,7 @@ import { ThreadAddForm } from "./ThreadAddForm"
 type ChannelCardProps = {
   channel: Channel
   testStates: Record<string, "idle" | "loading" | "success" | "error">
+  testErrors?: Record<string, string | null>
   onTestConnectivity: (channelId: number) => void
   onRemoveChannel: (channelId: number, hasSubEntities: boolean) => void
   onAddTopic: (channelId: number) => void
@@ -40,11 +41,17 @@ type ChannelCardProps = {
   onRefresh: () => Promise<void>
   activeFormId: string | null
   setActiveFormId: (id: string | null) => void
+  onShowTestError?: (channelId: number) => void
+  onShowSubEntityError?: (channelId: number, itemId: number) => void
+  isActive?: boolean
+  onCardFocus?: () => void
+  onCardBlur?: () => void
 }
 
 export function ChannelCard({
   channel,
   testStates,
+  testErrors,
   onTestConnectivity,
   onRemoveChannel,
   onAddTopic,
@@ -61,7 +68,39 @@ export function ChannelCard({
   onRefresh,
   activeFormId,
   setActiveFormId,
+  onShowTestError,
+  onShowSubEntityError,
+  isActive,
+  onCardFocus,
+  onCardBlur,
 }: ChannelCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  // Deterministic card focus tracking using native focusin/focusout
+  useEffect(() => {
+    const card = cardRef.current
+    if (!card || !onCardFocus || !onCardBlur) return
+
+    const handleFocusIn = () => {
+      onCardFocus()
+    }
+
+    const handleFocusOut = (e: FocusEvent) => {
+      const relatedTarget = e.relatedTarget as HTMLElement | null
+      if (!relatedTarget || !card.contains(relatedTarget)) {
+        onCardBlur()
+      }
+    }
+
+    card.addEventListener("focusin", handleFocusIn)
+    card.addEventListener("focusout", handleFocusOut)
+
+    return () => {
+      card.removeEventListener("focusin", handleFocusIn)
+      card.removeEventListener("focusout", handleFocusOut)
+    }
+  }, [onCardFocus, onCardBlur])
+
   const isTelegram = channel.type === "telegram"
   const prefix = CHANNEL_PREFIX[channel.type]
 
@@ -198,7 +237,15 @@ export function ChannelCard({
   }
 
   return (
-    <div style={styles.card}>
+    <div
+      ref={cardRef}
+      data-card-id={channel.id}
+      style={{
+        ...styles.card,
+        border: isActive ? "1px solid #4b5563" : "1px solid #3a3f4a",
+        backgroundColor: isActive ? "rgba(55, 60, 70, 0.5)" : "rgba(37, 40, 48, 0.5)",
+      }}
+    >
       {/* Card Header: "TG: Name" / "DC: Name" */}
       <div style={styles.cardHeader}>
         {prefix}: {channel.name}
@@ -216,6 +263,7 @@ export function ChannelCard({
             if (newName && newName !== channel.name) {
               onUpdateChannel(channel.id, { name: newName })
             }
+            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
           }}
           onFocus={(e) => {
             (e.target as HTMLInputElement).style.borderColor = "#0d9488"
@@ -240,6 +288,7 @@ export function ChannelCard({
                     credentials: { ...creds, botToken: newToken },
                   })
                 }
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }}
               onFocus={(e) => {
                 (e.target as HTMLInputElement).style.borderColor = "#0d9488"
@@ -260,6 +309,7 @@ export function ChannelCard({
                     credentials: { ...creds, chatId: newChatId },
                   })
                 }
+                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }}
               onFocus={(e) => {
                 (e.target as HTMLInputElement).style.borderColor = "#0d9488"
@@ -282,6 +332,7 @@ export function ChannelCard({
                   credentials: { ...creds, webhookUrl: newUrl },
                 })
               }
+              (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
             }}
             onFocus={(e) => {
               (e.target as HTMLInputElement).style.borderColor = "#0d9488"
@@ -303,6 +354,8 @@ export function ChannelCard({
             onTest={onTestTopic}
             isFormActive={isTopicFormActive}
             testStates={testStates}
+            testErrors={testErrors}
+            onShowError={onShowSubEntityError}
           />
           {/* TopicAddForm inline */}
           {isTopicFormActive && (
@@ -327,6 +380,8 @@ export function ChannelCard({
             onTest={onTestThread}
             isFormActive={isThreadFormActive}
             testStates={testStates}
+            testErrors={testErrors}
+            onShowError={onShowSubEntityError}
           />
           {/* ThreadAddForm inline */}
           {isThreadFormActive && (
@@ -351,8 +406,14 @@ export function ChannelCard({
                   ? styles.testButtonError
                   : styles.testButton
           }
-          onClick={() => onTestConnectivity(channel.id)}
-          disabled={testState === "loading" || testState === "success" || testState === "error"}
+          onClick={() => {
+            if (testState === "error") {
+              onShowTestError?.(channel.id)
+            } else {
+              onTestConnectivity(channel.id)
+            }
+          }}
+          disabled={testState === "loading" || testState === "success"}
           onMouseEnter={(e) => {
             if (testState === "idle") {
               (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"

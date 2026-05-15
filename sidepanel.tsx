@@ -86,73 +86,54 @@ type View = "capture" | "settings" | "help"
 function SidePanel() {
   const [view, setView] = useState<View>("capture")
 
-  // Listen for view-switch messages from background
-  useEffect(() => {
-    const listener = (message: { type: string; view?: string }) => {
-      if (message.type === MESSAGE_TYPES.SETTINGS_UPDATED && message.view) {
-        setView(message.view as View)
-      }
-    }
-    chrome.runtime.onMessage.addListener(listener)
-    return () => chrome.runtime.onMessage.removeListener(listener)
-  }, [])
+  // ── Send UI accordion state ──
+  const [sendUiAccordions, setSendUiAccordions] = useState({
+    screenshot: false,
+    message: true,
+    channels: true,
+  })
 
-  return view === "settings" ? (
-    <SettingsView onBack={() => setView("capture")} onHelp={() => setView("help")} />
-  ) : view === "help" ? (
-    <HelpView onBack={() => setView("settings")} />
-  ) : (
-    <CaptureView onSettings={() => setView("settings")} />
+  const handleAccordionToggle = useCallback(
+    (key: "screenshot" | "message" | "channels") => {
+      setSendUiAccordions((prev) => ({ ...prev, [key]: !prev[key] }))
+    },
+    []
   )
-}
 
-// ---------------------------------------------------------------------------
-// Capture View
-// ---------------------------------------------------------------------------
+  const handleSetAccordions = useCallback(
+    (values: Partial<typeof sendUiAccordions>) => {
+      setSendUiAccordions((prev) => ({ ...prev, ...values }))
+    },
+    []
+  )
 
-type CaptureState = "idle" | "capturing" | "captured" | "sending"
-type CaptureViewMode = "grid" | "textarea" | "form"
-
-function CaptureView({
-  onSettings,
-}: {
-  onSettings: () => void
-}) {
-  // Core state
+  // ── Capture view state (lifted to survive Settings ↔ Capture switching) ──
   const [captureState, setCaptureState] = useState<CaptureState>("idle")
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [sendResult, setSendResult] = useState<{ success: boolean; error?: string } | null>(null)
+  const [sendResult, setSendResult] = useState<{ success: boolean; targetCount?: number; error?: string } | null>(null)
+  const [errorButtonActive, setErrorButtonActive] = useState(false)
 
-  // Template state
   const [mode, setMode] = useState<CaptureViewMode>("grid")
   const [templates, setTemplates] = useState<Template[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
   const [isCustom, setIsCustom] = useState(false)
   const [caption, setCaption] = useState("")
 
-  // Channel state (Send UI)
   const [channels, setChannels] = useState<Channel[]>([])
   const [channelsLoading, setChannelsLoading] = useState(true)
 
-  // Selection state (AD-7.2)
   const [selectedChannels, setSelectedChannels] = useState<Set<number>>(new Set())
   const [selectedSubEntities, setSelectedSubEntities] = useState<Set<string>>(new Set())
 
-  // Multi-channel send result state (Phase 8)
   const [sendResults, setSendResults] = useState<SendTargetResult[] | null>(null)
   const [showSendResultModal, setShowSendResultModal] = useState(false)
 
-  // Channel D&D state
   const [channelDragActiveId, setChannelDragActiveId] = useState<number | null>(null)
 
-  // Load templates on mount
+  // Load templates + channels on mount
   useEffect(() => {
     getTemplates().then(setTemplates)
-  }, [])
-
-  // Load channels on mount (sorted by sendOrder)
-  useEffect(() => {
     getChannelsSortedBySendOrder().then((ch) => {
       setChannels(ch)
       setChannelsLoading(false)
@@ -173,18 +154,12 @@ function CaptureView({
     return () => clearTimeout(timer)
   }, [error])
 
-  // -----------------------------------------------------------------------
-  // Selection Helpers (AD-7.2)
-  // -----------------------------------------------------------------------
-
+  // ── Selection helpers ──
   const handleToggleChannel = useCallback((channelId: number) => {
     setSelectedChannels((prev) => {
       const next = new Set(prev)
-      if (next.has(channelId)) {
-        next.delete(channelId)
-      } else {
-        next.add(channelId)
-      }
+      if (next.has(channelId)) next.delete(channelId)
+      else next.add(channelId)
       return next
     })
   }, [])
@@ -193,11 +168,8 @@ function CaptureView({
     const key = `${channelId}:${subEntityId}`
     setSelectedSubEntities((prev) => {
       const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }, [])
@@ -209,15 +181,11 @@ function CaptureView({
 
   const totalSelectedCount = selectedChannels.size + selectedSubEntities.size
 
-  // -----------------------------------------------------------------------
-  // Shortcut Capture Listener (Opt+S)
-  // -----------------------------------------------------------------------
-
+  // ── Shortcut Capture Listener (Opt+S) ──
   useEffect(() => {
     const listener = (message: { type: string; dataUrl?: string; cropped?: boolean }) => {
       if (message.type === MESSAGE_TYPES.SHORTCUT_CAPTURE && message.dataUrl) {
         getTemplates().then(setTemplates)
-
         setScreenshotUrl(message.dataUrl)
         setCaptureState("captured")
         setError(null)
@@ -226,15 +194,15 @@ function CaptureView({
         setSelectedTemplateId(null)
         setIsCustom(false)
         setCaption("")
-        clearSelections()
-        // Reload channels in case they changed in Settings
+        handleSetAccordions({ screenshot: true, message: true, channels: true })
         getChannelsSortedBySendOrder().then(setChannels)
       }
     }
     chrome.runtime.onMessage.addListener(listener)
     return () => chrome.runtime.onMessage.removeListener(listener)
-  }, [clearSelections])
+  }, [handleSetAccordions])
 
+  // ── Handle Capture ──
   const handleCapture = useCallback(async () => {
     setCaptureState("capturing")
     setError(null)
@@ -249,20 +217,22 @@ function CaptureView({
         setScreenshotUrl(response.dataUrl)
         setCaptureState("captured")
         setMode("grid")
+        handleSetAccordions({ screenshot: true, message: true, channels: true })
       } else {
         setError(response.error)
         setCaptureState("idle")
+        setErrorButtonActive(true)
+        setTimeout(() => setErrorButtonActive(false), 3000)
       }
     } catch {
       setError("Failed to capture screenshot")
       setCaptureState("idle")
+      setErrorButtonActive(true)
+      setTimeout(() => setErrorButtonActive(false), 3000)
     }
-  }, [])
+  }, [handleSetAccordions])
 
-  // -----------------------------------------------------------------------
-  // Handle Send (Phase 8: multi-channel send to all selected targets)
-  // -----------------------------------------------------------------------
-
+  // ── Handle Send ──
   const handleSend = useCallback(async () => {
     if (!screenshotUrl || totalSelectedCount === 0) return
 
@@ -270,21 +240,15 @@ function CaptureView({
     setSendResult(null)
     setShowSendResultModal(false)
 
-    // Build SendTarget[] from selection state
     const targets: SendTarget[] = []
-
-    // Main channel selections (selectedChannels contains channel IDs)
     for (const channelId of selectedChannels) {
       targets.push({ channelId })
     }
-
-    // Sub-entity selections (selectedSubEntities contains "channelId:subEntityConfigId" keys)
     for (const key of selectedSubEntities) {
       const [chIdStr, subIdStr] = key.split(":")
       const channelId = parseInt(chIdStr, 10)
       const channel = channels.find((ch) => ch.id === channelId)
       if (!channel) continue
-
       targets.push({
         channelId,
         subTargetType: channel.type === "telegram" ? ("topic" as const) : ("thread" as const),
@@ -303,8 +267,7 @@ function CaptureView({
       const allSuccess = response.results.every((r) => r.success)
 
       if (allSuccess) {
-        // All targets succeeded — reset capture state + show toast
-        setSendResult({ success: true })
+        setSendResult({ success: true, targetCount: totalSelectedCount })
         setScreenshotUrl(null)
         setCaptureState("idle")
         setMode("grid")
@@ -312,8 +275,8 @@ function CaptureView({
         setIsCustom(false)
         setCaption("")
         clearSelections()
+        handleSetAccordions({ screenshot: false })
       } else {
-        // At least one target failed — show result modal
         setSendResults(response.results)
         setShowSendResultModal(true)
         setCaptureState("captured")
@@ -322,16 +285,9 @@ function CaptureView({
       setSendResult({ success: false, error: "Failed to send" })
       setCaptureState("captured")
     }
-  }, [
-    screenshotUrl,
-    caption,
-    totalSelectedCount,
-    selectedChannels,
-    selectedSubEntities,
-    channels,
-    clearSelections,
-  ])
+  }, [screenshotUrl, caption, totalSelectedCount, selectedChannels, selectedSubEntities, channels, clearSelections, handleSetAccordions])
 
+  // ── Handle Cancel ──
   const handleCancel = useCallback(() => {
     setScreenshotUrl(null)
     setError(null)
@@ -342,9 +298,10 @@ function CaptureView({
     setIsCustom(false)
     setCaption("")
     clearSelections()
-  }, [clearSelections])
+    handleSetAccordions({ screenshot: false })
+  }, [clearSelections, handleSetAccordions])
 
-  // Create new template from form
+  // ── Template creation ──
   const handleCreateTemplate = useCallback(async (name: string, body: string) => {
     await createTemplate(name, body)
     const updated = await getTemplates()
@@ -352,33 +309,21 @@ function CaptureView({
     setMode("grid")
   }, [])
 
-  // -----------------------------------------------------------------------
-  // Sub-entity helper
-  // -----------------------------------------------------------------------
-
+  // ── Sub-entity helper ──
   const getSubEntitiesForSend = useCallback(
     (channel: Channel): Array<{ id: number; name: string }> => {
       if (channel.type === "telegram") {
         const creds = channel.credentials as TelegramCredentials
-        return creds.topics
-          .slice()
-          .sort((a, b) => a.order - b.order)
-          .map((t) => ({ id: t.id, name: t.name }))
+        return creds.topics.slice().sort((a, b) => a.order - b.order).map((t) => ({ id: t.id, name: t.name }))
       } else {
         const creds = channel.credentials as DiscordCredentials
-        return creds.threads
-          .slice()
-          .sort((a, b) => a.order - b.order)
-          .map((t) => ({ id: t.id, name: t.name }))
+        return creds.threads.slice().sort((a, b) => a.order - b.order).map((t) => ({ id: t.id, name: t.name }))
       }
     },
     []
   )
 
-  // -----------------------------------------------------------------------
-  // Channel-Level D&D (Step 9)
-  // -----------------------------------------------------------------------
-
+  // ── Channel D&D ──
   const channelSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor)
@@ -392,59 +337,199 @@ function CaptureView({
     async (event: DragEndEvent) => {
       const { active, over } = event
       setChannelDragActiveId(null)
-
       if (!over || active.id === over.id) return
-
       const oldIndex = channels.findIndex((ch) => ch.id === active.id)
       const newIndex = channels.findIndex((ch) => ch.id === over.id)
       if (oldIndex === -1 || newIndex === -1) return
-
       const reordered = arrayMove(channels, oldIndex, newIndex)
       setChannels(reordered)
-
-      // Persist new sendOrder
       const sortedIds = reordered.map((ch) => ch.id)
       await updateChannelSendOrder(sortedIds)
     },
     [channels]
   )
 
-  // -----------------------------------------------------------------------
-  // Sub-Entity-Level D&D (Step 10)
-  // -----------------------------------------------------------------------
-
+  // ── Sub-Entity D&D ──
   const handleSubEntityDragEnd = useCallback(
     async (channelId: number, event: DragEndEvent) => {
       const { active, over } = event
       if (!over || active.id === over.id) return
-
       const channel = channels.find((ch) => ch.id === channelId)
       if (!channel) return
-
       const type: "topic" | "thread" = channel.type === "telegram" ? "topic" : "thread"
       const creds = channel.credentials as TelegramCredentials | DiscordCredentials
-      const rawSubEntities =
-        type === "topic"
-          ? (creds as TelegramCredentials).topics
-          : (creds as DiscordCredentials).threads
+      const rawSubEntities = type === "topic" ? (creds as TelegramCredentials).topics : (creds as DiscordCredentials).threads
       const subEntities = rawSubEntities.slice().sort((a, b) => a.order - b.order)
-
       const oldIndex = subEntities.findIndex((s) => s.id === active.id)
       const newIndex = subEntities.findIndex((s) => s.id === over.id)
       if (oldIndex === -1 || newIndex === -1) return
-
       const reordered = arrayMove(subEntities, oldIndex, newIndex)
       const sortedIds = reordered.map((s) => s.id)
-
-      // Persist new order
       await updateSubEntityOrder(channelId, sortedIds, type)
-
-      // Refresh channels to get updated order
       const updated = await getChannelsSortedBySendOrder()
       setChannels(updated)
     },
     [channels]
   )
+
+  // Listen for view-switch messages from background
+  useEffect(() => {
+    const listener = (message: { type: string; view?: string }) => {
+      if (message.type === MESSAGE_TYPES.SETTINGS_UPDATED && message.view) {
+        setView(message.view as View)
+      }
+    }
+    chrome.runtime.onMessage.addListener(listener)
+    return () => chrome.runtime.onMessage.removeListener(listener)
+  }, [])
+
+  return view === "settings" ? (
+    <SettingsView onBack={() => setView("capture")} onHelp={() => setView("help")} />
+  ) : view === "help" ? (
+    <HelpView onBack={() => setView("settings")} />
+  ) : (
+    <CaptureView
+      onSettings={() => setView("settings")}
+      accordionState={sendUiAccordions}
+      onAccordionToggle={handleAccordionToggle}
+      onSetAccordions={handleSetAccordions}
+      // Capture state
+      captureState={captureState}
+      screenshotUrl={screenshotUrl}
+      error={error}
+      sendResult={sendResult}
+      errorButtonActive={errorButtonActive}
+      mode={mode}
+      templates={templates}
+      selectedTemplateId={selectedTemplateId}
+      isCustom={isCustom}
+      caption={caption}
+      channels={channels}
+      channelsLoading={channelsLoading}
+      selectedChannels={selectedChannels}
+      selectedSubEntities={selectedSubEntities}
+      sendResults={sendResults}
+      showSendResultModal={showSendResultModal}
+      channelDragActiveId={channelDragActiveId}
+      // Setters
+      setMode={setMode}
+      setSelectedTemplateId={setSelectedTemplateId}
+      setIsCustom={setIsCustom}
+      setCaption={setCaption}
+      setChannels={setChannels}
+      setChannelsLoading={setChannelsLoading}
+      setSendResults={setSendResults}
+      setShowSendResultModal={setShowSendResultModal}
+      setChannelDragActiveId={setChannelDragActiveId}
+      // Handlers
+      onCapture={handleCapture}
+      onSend={handleSend}
+      onCancel={handleCancel}
+      onToggleChannel={handleToggleChannel}
+      onToggleSubEntity={handleToggleSubEntity}
+      onCreateTemplate={handleCreateTemplate}
+      getSubEntitiesForSend={getSubEntitiesForSend}
+      channelSensors={channelSensors}
+      onChannelDragStart={handleChannelDragStart}
+      onChannelDragEnd={handleChannelDragEnd}
+      onSubEntityDragEnd={handleSubEntityDragEnd}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Capture View
+// ---------------------------------------------------------------------------
+
+type CaptureState = "idle" | "capturing" | "captured" | "sending"
+type CaptureViewMode = "grid" | "textarea" | "form"
+
+function CaptureView({
+  onSettings,
+  accordionState,
+  onAccordionToggle,
+  onSetAccordions,
+  captureState,
+  screenshotUrl,
+  error,
+  sendResult,
+  errorButtonActive,
+  mode,
+  templates,
+  selectedTemplateId,
+  isCustom,
+  caption,
+  channels,
+  channelsLoading,
+  selectedChannels,
+  selectedSubEntities,
+  sendResults,
+  showSendResultModal,
+  channelDragActiveId,
+  setMode,
+  setSelectedTemplateId,
+  setIsCustom,
+  setCaption,
+  setChannels,
+  setChannelsLoading,
+  setSendResults,
+  setShowSendResultModal,
+  setChannelDragActiveId,
+  onCapture,
+  onSend,
+  onCancel,
+  onToggleChannel,
+  onToggleSubEntity,
+  onCreateTemplate,
+  getSubEntitiesForSend,
+  channelSensors,
+  onChannelDragStart,
+  onChannelDragEnd,
+  onSubEntityDragEnd,
+}: {
+  onSettings: () => void
+  accordionState: { screenshot: boolean; message: boolean; channels: boolean }
+  onAccordionToggle: (key: "screenshot" | "message" | "channels") => void
+  onSetAccordions: (values: Partial<{ screenshot: boolean; message: boolean; channels: boolean }>) => void
+  captureState: CaptureState
+  screenshotUrl: string | null
+  error: string | null
+  sendResult: { success: boolean; targetCount?: number; error?: string } | null
+  errorButtonActive: boolean
+  mode: CaptureViewMode
+  templates: Template[]
+  selectedTemplateId: number | null
+  isCustom: boolean
+  caption: string
+  channels: Channel[]
+  channelsLoading: boolean
+  selectedChannels: Set<number>
+  selectedSubEntities: Set<string>
+  sendResults: SendTargetResult[] | null
+  showSendResultModal: boolean
+  channelDragActiveId: number | null
+  setMode: (m: CaptureViewMode) => void
+  setSelectedTemplateId: (id: number | null) => void
+  setIsCustom: (v: boolean) => void
+  setCaption: (v: string) => void
+  setChannels: (ch: Channel[]) => void
+  setChannelsLoading: (v: boolean) => void
+  setSendResults: (r: SendTargetResult[] | null) => void
+  setShowSendResultModal: (v: boolean) => void
+  setChannelDragActiveId: (id: number | null) => void
+  onCapture: () => void
+  onSend: () => void
+  onCancel: () => void
+  onToggleChannel: (channelId: number) => void
+  onToggleSubEntity: (channelId: number, subEntityId: number) => void
+  onCreateTemplate: (name: string, body: string) => Promise<void>
+  getSubEntitiesForSend: (channel: Channel) => Array<{ id: number; name: string }>
+  channelSensors: ReturnType<typeof useSensors>
+  onChannelDragStart: (event: { active: { id: number } }) => void
+  onChannelDragEnd: (event: DragEndEvent) => void
+  onSubEntityDragEnd: (channelId: number, event: DragEndEvent) => void
+}) {
+  const totalSelectedCount = selectedChannels.size + selectedSubEntities.size
 
   return (
     <main style={{ ...s.container, position: "relative" }}>
@@ -465,43 +550,47 @@ function CaptureView({
         </button>
       </div>
 
-      {/* Fixed: Screenshot Preview */}
-      <div style={{
-        ...s.previewContainer,
-        backgroundColor: screenshotUrl ? "transparent" : "rgba(40, 48, 56, 0.5)",
-        minHeight: screenshotUrl ? "auto" : 200,
-      }}>
-        {screenshotUrl ? (
-          <img
-            src={screenshotUrl}
-            style={s.previewImage}
-            alt="Captured screenshot"
-          />
-        ) : (
-          <div style={{
-            ...s.placeholderBox,
-            minHeight: 200,
-            display: "flex",
-            flexDirection: "column" as const,
-            alignItems: "center",
-            justifyContent: "center",
-          }}>
-            <p style={s.placeholderTitle}>Screenshot Preview</p>
-            <p style={s.placeholderSub}>
-              {captureState === "idle"
-                ? "Press Opt+S on TradingView or click Capture"
-                : captureState === "capturing"
-                  ? "Capturing..."
-                  : "No screenshot captured"}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Scrollable: Message + Channels */}
+      {/* Scrollable: Screenshot + Message + Channels */}
       <div style={s.scrollableContent}>
+        {/* Collapsible Screenshot Preview */}
+        <CollapsibleSection
+          title="SCREENSHOT"
+          isOpen={accordionState.screenshot}
+          onToggle={() => onAccordionToggle("screenshot")}
+        >
+          {screenshotUrl ? (
+            <img
+              src={screenshotUrl}
+              style={s.previewImage}
+              alt="Captured screenshot"
+            />
+          ) : (
+            <div style={{
+              ...s.placeholderBox,
+              minHeight: 100,
+              display: "flex",
+              flexDirection: "column" as const,
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <p style={s.placeholderTitle}>Screenshot Preview</p>
+              <p style={s.placeholderSub}>
+                {captureState === "idle"
+                  ? "Press Opt+S on TradingView or click Capture"
+                  : captureState === "capturing"
+                    ? "Capturing..."
+                    : "No screenshot captured"}
+              </p>
+            </div>
+          )}
+        </CollapsibleSection>
+
         {/* Message Section — always visible (OQ-1) */}
-        <CollapsibleSection title="MESSAGE" defaultOpen={true}>
+        <CollapsibleSection
+          title="MESSAGE"
+          isOpen={accordionState.message}
+          onToggle={() => onAccordionToggle("message")}
+        >
           {screenshotUrl ? (
             <>
               {/* Template Grid */}
@@ -596,7 +685,7 @@ function CaptureView({
                 <div style={s.formSection}>
                   <TemplateForm
                     mode="create"
-                    onSave={handleCreateTemplate}
+                    onSave={onCreateTemplate}
                     onCancel={() => {
                       setMode("grid")
                     }}
@@ -613,7 +702,11 @@ function CaptureView({
         </CollapsibleSection>
 
         {/* CHANNELS Section */}
-        <CollapsibleSection title="CHANNELS" defaultOpen={true}>
+        <CollapsibleSection
+          title="CHANNELS"
+          isOpen={accordionState.channels}
+          onToggle={() => onAccordionToggle("channels")}
+        >
           {channelsLoading ? (
             <p style={s.loadingText}>Loading channels...</p>
           ) : channels.length === 0 ? (
@@ -634,8 +727,8 @@ function CaptureView({
               <DndContext
                 sensors={channelSensors}
                 collisionDetection={closestCenter}
-                onDragStart={handleChannelDragStart}
-                onDragEnd={handleChannelDragEnd}
+                onDragStart={onChannelDragStart}
+                onDragEnd={onChannelDragEnd}
               >
                 <SortableContext
                   items={channels.map((ch) => ch.id)}
@@ -649,12 +742,12 @@ function CaptureView({
                         key={channel.id}
                         channel={channel}
                         selected={selectedChannels.has(channel.id)}
-                        onToggleMain={() => handleToggleChannel(channel.id)}
+                        onToggleMain={() => onToggleChannel(channel.id)}
                         selectedSubEntities={selectedSubEntities}
-                        onToggleSubEntity={handleToggleSubEntity}
+                        onToggleSubEntity={onToggleSubEntity}
                         subEntities={subEntities}
                         subEntityIds={subEntityIds}
-                        onSubEntityDragEnd={handleSubEntityDragEnd}
+                        onSubEntityDragEnd={onSubEntityDragEnd}
                         dragActiveId={channelDragActiveId}
                       />
                     )
@@ -678,29 +771,38 @@ function CaptureView({
       <div style={s.bottomBar}>
         {captureState === "idle" && !screenshotUrl && (
           <button
-            style={s.captureButton}
-            onClick={handleCapture}
+            style={{
+              ...s.captureButton,
+              width: "100%",
+              backgroundColor: errorButtonActive ? "#991b1b" : "#0d9488",
+            }}
+            onClick={onCapture}
+            disabled={captureState === "capturing"}
             onMouseEnter={(e) => {
-              (e.target as HTMLButtonElement).style.backgroundColor = "#14b8a6"
+              if (!errorButtonActive) {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#14b8a6"
+              }
             }}
             onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.backgroundColor = "#0d9488"
+              if (!errorButtonActive) {
+                (e.target as HTMLButtonElement).style.backgroundColor = "#0d9488"
+              }
             }}
           >
-            Capture
+            {errorButtonActive ? "Not a TradingView page" : "Capture"}
           </button>
         )}
 
         {captureState === "capturing" && (
-          <button style={s.buttonLoading} disabled>Capturing...</button>
+          <button style={{ ...s.buttonLoading, width: "100%" }} disabled>Capturing...</button>
         )}
 
         {captureState === "captured" && screenshotUrl && (
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, width: "100%" }}>
             <button
               style={totalSelectedCount > 0 ? s.sendButton : s.sendButtonDisabled}
               disabled={totalSelectedCount === 0 || captureState === "sending"}
-              onClick={handleSend}
+              onClick={onSend}
               onMouseEnter={(e) => {
                 if (totalSelectedCount > 0) {
                   (e.target as HTMLButtonElement).style.backgroundColor = "#059669"
@@ -718,7 +820,7 @@ function CaptureView({
             </button>
             <button
               style={s.cancelButton}
-              onClick={handleCancel}
+              onClick={onCancel}
               onMouseEnter={(e) => {
                 (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
               }}
@@ -732,8 +834,8 @@ function CaptureView({
         )}
       </div>
 
-      {/* Toast-like messages — absolute positioned */}
-      {(error || sendResult) && (
+      {/* Send Result Toast — absolute positioned */}
+      {sendResult && (
         <div style={{
           position: "absolute",
           bottom: 60,
@@ -741,14 +843,11 @@ function CaptureView({
           right: 16,
           zIndex: 1000,
         }}>
-          {error && <div style={s.errorMessage}>{error}</div>}
-          {sendResult && (
-            <div style={sendResult.success ? s.sendSuccess : s.sendError}>
-              {sendResult.success
-                ? `Sent to ${totalSelectedCount} target${totalSelectedCount !== 1 ? "s" : ""}`
-                : sendResult.error}
-            </div>
-          )}
+          <div style={sendResult.success ? s.sendSuccess : s.sendError}>
+            {sendResult.success
+              ? `Sent to ${sendResult.targetCount ?? 0} target${(sendResult.targetCount ?? 0) !== 1 ? "s" : ""}`
+              : sendResult.error}
+          </div>
         </div>
       )}
 
@@ -868,11 +967,20 @@ function SettingsView({
     Record<string, "idle" | "loading" | "success" | "error">
   >({})
 
+  // Test error messages — keyed by same keys as testStates
+  const [testErrors, setTestErrors] = useState<Record<string, string | null>>({})
+
+  // Error modal for test failures
+  const [testErrorModal, setTestErrorModal] = useState<string | null>(null)
+
   // Template state (unchanged)
   const [templates, setTemplates] = useState<Template[]>([])
   const [showTemplateForm, setShowTemplateForm] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+
+  // Card focus/active state (Step 10)
+  const [activeCardId, setActiveCardId] = useState<number | null>(null)
 
   // Drag & Drop state
   const [dragActiveId, setDragActiveId] = useState<number | null>(null)
@@ -1046,8 +1154,14 @@ function SettingsView({
         ...prev,
         [key]: result.success ? "success" : "error",
       }))
+      if (!result.success) {
+        setTestErrors((prev) => ({ ...prev, [key]: result.error || "Unknown error" }))
+      } else {
+        setTestErrors((prev) => ({ ...prev, [key]: null }))
+      }
     } catch {
       setTestStates((prev) => ({ ...prev, [key]: "error" }))
+      setTestErrors((prev) => ({ ...prev, [key]: "Unexpected error occurred." }))
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
@@ -1120,8 +1234,14 @@ function SettingsView({
         ...prev,
         [key]: result.success ? "success" : "error",
       }))
+      if (!result.success) {
+        setTestErrors((prev) => ({ ...prev, [key]: result.error || "Unknown error" }))
+      } else {
+        setTestErrors((prev) => ({ ...prev, [key]: null }))
+      }
     } catch {
       setTestStates((prev) => ({ ...prev, [key]: "error" }))
+      setTestErrors((prev) => ({ ...prev, [key]: "Unexpected error occurred." }))
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
@@ -1184,12 +1304,38 @@ function SettingsView({
         ...prev,
         [key]: result.success ? "success" : "error",
       }))
+      if (!result.success) {
+        setTestErrors((prev) => ({ ...prev, [key]: result.error || "Unknown error" }))
+      } else {
+        setTestErrors((prev) => ({ ...prev, [key]: null }))
+      }
     } catch {
       setTestStates((prev) => ({ ...prev, [key]: "error" }))
+      setTestErrors((prev) => ({ ...prev, [key]: "Unexpected error occurred." }))
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
     }, 3000)
+  }
+
+  // -----------------------------------------------------------------------
+  // Error Modal handlers (Step 9)
+  // -----------------------------------------------------------------------
+
+  const handleShowTestError = (channelId: number) => {
+    const key = `ch-${channelId}`
+    const errorMsg = testErrors[key]
+    if (errorMsg) {
+      setTestErrorModal(errorMsg)
+    }
+  }
+
+  const handleShowSubEntityError = (channelId: number, itemId: number, platform: "telegram" | "discord") => {
+    const key = platform === "telegram" ? `topic-${channelId}-${itemId}` : `thread-${channelId}-${itemId}`
+    const errorMsg = testErrors[key]
+    if (errorMsg) {
+      setTestErrorModal(errorMsg)
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -1269,6 +1415,8 @@ function SettingsView({
         </div>
       </div>
 
+      {/* Scrollable: all accordion sections */}
+      <div style={s.scrollableContent}>
       {/* Telegram Channels Section */}
       <CollapsibleSection title="TELEGRAM CHANNELS" defaultOpen={true}>
         {telegramChannels.map((channel) => (
@@ -1276,6 +1424,7 @@ function SettingsView({
             key={channel.id}
             channel={channel}
             testStates={testStates}
+            testErrors={testErrors}
             onTestConnectivity={handleTestConnectivity}
             onRemoveChannel={handleRemoveChannel}
             onAddTopic={handleAddTopic}
@@ -1295,6 +1444,11 @@ function SettingsView({
             onRefresh={refreshChannels}
             activeFormId={activeFormId}
             setActiveFormId={setActiveFormId}
+            onShowTestError={handleShowTestError}
+            onShowSubEntityError={(chId, itemId) => handleShowSubEntityError(chId, itemId, "telegram")}
+            isActive={activeCardId === channel.id}
+            onCardFocus={() => setActiveCardId(channel.id)}
+            onCardBlur={() => setActiveCardId(null)}
           />
         ))}
 
@@ -1311,6 +1465,9 @@ function SettingsView({
                 onFocus={(e) => {
                   (e.target as HTMLInputElement).style.borderColor = "#0d9488"
                 }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                }}
               />
             </div>
             <div style={s.field}>
@@ -1323,6 +1480,9 @@ function SettingsView({
                 onFocus={(e) => {
                   (e.target as HTMLInputElement).style.borderColor = "#0d9488"
                 }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                }}
               />
             </div>
             <div style={s.field}>
@@ -1334,6 +1494,9 @@ function SettingsView({
                 onChange={(e) => setAddFormChatId(e.target.value)}
                 onFocus={(e) => {
                   (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
                 }}
               />
             </div>
@@ -1382,6 +1545,7 @@ function SettingsView({
             key={channel.id}
             channel={channel}
             testStates={testStates}
+            testErrors={testErrors}
             onTestConnectivity={handleTestConnectivity}
             onRemoveChannel={handleRemoveChannel}
             onAddTopic={() => {}}
@@ -1401,6 +1565,11 @@ function SettingsView({
             onRefresh={refreshChannels}
             activeFormId={activeFormId}
             setActiveFormId={setActiveFormId}
+            onShowTestError={handleShowTestError}
+            onShowSubEntityError={(chId, itemId) => handleShowSubEntityError(chId, itemId, "discord")}
+            isActive={activeCardId === channel.id}
+            onCardFocus={() => setActiveCardId(channel.id)}
+            onCardBlur={() => setActiveCardId(null)}
           />
         ))}
 
@@ -1417,6 +1586,9 @@ function SettingsView({
                 onFocus={(e) => {
                   (e.target as HTMLInputElement).style.borderColor = "#0d9488"
                 }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                }}
               />
             </div>
             <div style={s.field}>
@@ -1428,6 +1600,9 @@ function SettingsView({
                 onChange={(e) => setAddFormWebhookUrl(e.target.value)}
                 onFocus={(e) => {
                   (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
                 }}
               />
             </div>
@@ -1606,6 +1781,30 @@ function SettingsView({
         />
       )}
 
+      {/* Error Modal for Test Failures */}
+      {testErrorModal && (
+        <div style={s.overlay}>
+          <div style={s.popup}>
+            <p style={s.popupTitle}>Connection Test Failed</p>
+            <p style={{ ...s.popupText, whiteSpace: "pre-wrap" as const }}>{testErrorModal}</p>
+            <div style={s.popupButtons}>
+              <button
+                style={{ ...s.popupCancelButton, flex: 1 }}
+                onClick={() => setTestErrorModal(null)}
+                onMouseEnter={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+                }}
+                onMouseLeave={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toast && (
         <div style={s.toast}>
@@ -1616,6 +1815,7 @@ function SettingsView({
       {/* Branding */}
       <div style={s.branding}>
         By Mazi Labs
+      </div>
       </div>
     </main>
   )
@@ -2059,7 +2259,7 @@ const s: Record<string, React.CSSProperties> = {
     scrollbarWidth: "none" as const,
     position: "relative" as const, // For absolute-positioned toast messages
   },
-  // Container for settings view (no flex, normal flow)
+  // Container for settings view (flex column layout for sticky header)
   settingsContainer: {
     padding: 16,
     fontFamily:
@@ -2067,8 +2267,11 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 14,
     color: "#e5e7eb",
     backgroundColor: "#1e2028",
-    minHeight: "100vh",
+    height: "100vh",
     boxSizing: "border-box" as const,
+    display: "flex",
+    flexDirection: "column" as const,
+    overflow: "hidden" as const,
   },
   header: {
     display: "flex",

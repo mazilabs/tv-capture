@@ -85,13 +85,19 @@ export function SendChannelCard({
       style={{
         ...styles.card,
         border: "1px solid #3a3f4a",
-        backgroundColor: selected
-          ? "rgba(13, 148, 136, 0.08)"
-          : "rgba(37, 40, 48, 0.5)",
+        backgroundColor: "rgba(37, 40, 48, 0.5)",
       }}
     >
       {/* Header Row */}
-      <div style={styles.header} onClick={handleHeaderClick}>
+      <div
+        style={{
+          ...styles.header,
+          backgroundColor: selected ? "rgba(13, 148, 136, 0.08)" : "transparent",
+          borderLeft: selected ? "3px solid #14b8a6" : "3px solid transparent",
+          borderRadius: selected ? "2px" : "0px",
+        }}
+        onClick={handleHeaderClick}
+      >
         {/* Drag Handle */}
         <span
           data-drag-handle

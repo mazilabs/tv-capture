@@ -16,6 +16,10 @@ import { useState } from "react"
 type CollapsibleSectionProps = {
   title: string
   defaultOpen?: boolean
+  /** Controlled open state (optional — when provided, component is controlled) */
+  isOpen?: boolean
+  /** Controlled toggle callback (optional — required when isOpen is provided) */
+  onToggle?: () => void
   children: React.ReactNode
   /** Optional info icon with tooltip and click handler */
   infoTooltip?: string
@@ -29,11 +33,23 @@ type CollapsibleSectionProps = {
 export function CollapsibleSection({
   title,
   defaultOpen = false,
+  isOpen: controlledIsOpen,
+  onToggle,
   children,
   infoTooltip,
   infoOnClick,
 }: CollapsibleSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+  const [internalIsOpen, setInternalIsOpen] = useState(defaultOpen)
+
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen
+
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle()
+    } else {
+      setInternalIsOpen(!internalIsOpen)
+    }
+  }
 
   const styles: Record<string, React.CSSProperties> = {
     container: {
@@ -92,9 +108,9 @@ export function CollapsibleSection({
 
   return (
     <div style={styles.container}>
-      <div 
-        style={styles.header} 
-        onClick={() => setIsOpen(!isOpen)}
+      <div
+        style={styles.header}
+        onClick={handleToggle}
       >
         <div style={styles.titleRow}>
           <span style={styles.title}>{title}</span>

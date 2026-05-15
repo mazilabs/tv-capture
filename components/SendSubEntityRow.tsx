@@ -44,7 +44,7 @@ export function SendSubEntityRow({
       style={{
         ...styles.row,
         backgroundColor: selected ? "rgba(13, 148, 136, 0.08)" : "transparent",
-        borderLeft: "2px solid transparent",
+        borderLeft: selected ? "3px solid #14b8a6" : "3px solid transparent",
       }}
       onClick={handleRowClick}
     >

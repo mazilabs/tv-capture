@@ -22,6 +22,8 @@ type SubEntityListProps = {
   onTest: (channelId: number, itemId: number) => void
   isFormActive: boolean // Is the add form for this channel currently open?
   testStates: Record<string, "idle" | "loading" | "success" | "error">
+  testErrors?: Record<string, string | null>
+  onShowError?: (channelId: number, itemId: number) => void
 }
 
 export function SubEntityList({
@@ -34,6 +36,8 @@ export function SubEntityList({
   onTest,
   isFormActive,
   testStates,
+  testErrors,
+  onShowError,
 }: SubEntityListProps) {
   const label = platform === "telegram" ? "TOPICS" : "THREADS"
 
@@ -194,9 +198,19 @@ export function SubEntityList({
                         ? styles.testButtonError
                         : styles.smallButton
                 }
-                onClick={() => onTest(channelId, item.id)}
-                disabled={testState !== "idle"}
-                title={`${platform === "telegram" ? "Topic" : "Thread"} ID: ${item.externalId}`}
+                onClick={() => {
+                  if (testState === "error") {
+                    onShowError?.(channelId, item.id)
+                  } else {
+                    onTest(channelId, item.id)
+                  }
+                }}
+                disabled={testState === "loading" || testState === "success"}
+                title={
+                  testState === "error"
+                    ? "Click to see error details"
+                    : `${platform === "telegram" ? "Topic" : "Thread"} ID: ${item.externalId}`
+                }
               >
                 {testState === "loading"
                   ? "Testing..."

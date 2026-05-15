@@ -89,18 +89,6 @@ function Popup() {
 
       <div style={styles.buttonRow}>
         <button 
-          style={styles.buttonSettings} 
-          onClick={handleOpenSettings}
-          onMouseEnter={(e) => {
-            (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLButtonElement).style.backgroundColor = "#252830"
-          }}
-        >
-          Settings
-        </button>
-        <button 
           style={styles.buttonCapture} 
           onClick={handleCapture}
           onMouseEnter={(e) => {
@@ -111,6 +99,18 @@ function Popup() {
           }}
         >
           Capture
+        </button>
+        <button 
+          style={styles.buttonSettings} 
+          onClick={handleOpenSettings}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.backgroundColor = "#252830"
+          }}
+        >
+          Settings
         </button>
       </div>
     </main>

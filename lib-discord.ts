@@ -34,7 +34,7 @@ export type DiscordSendResult =
 function mapDiscordError(status: number, body: string): string {
   switch (status) {
     case 400:
-      return `Invalid request: ${body}`
+      return "Invalid request. Check the webhook URL and thread ID."
 
     case 401:
     case 403:
@@ -60,7 +60,7 @@ function mapDiscordError(status: number, body: string): string {
       if (status >= 500) {
         return "Discord server error. Please try again later."
       }
-      return `Discord error (${status}): ${body}`
+      return "Connection failed. Please check your webhook URL and try again."
   }
 }
 

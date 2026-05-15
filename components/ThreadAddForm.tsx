@@ -135,6 +135,9 @@ export function ThreadAddForm({
           onFocus={(e) => {
             (e.target as HTMLInputElement).style.borderColor = "#0d9488"
           }}
+          onBlur={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+          }}
           disabled={loading}
         />
       </div>
@@ -148,6 +151,9 @@ export function ThreadAddForm({
           onChange={(e) => setThreadId(e.target.value)}
           onFocus={(e) => {
             (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+          }}
+          onBlur={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
           }}
           disabled={loading}
         />
