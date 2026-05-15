@@ -84,11 +84,9 @@ export function SendChannelCard({
     <div
       style={{
         ...styles.card,
-        border: selected
-          ? "1px solid rgba(13, 148, 136, 0.4)"
-          : "1px solid #3a3f4a",
+        border: "1px solid #3a3f4a",
         backgroundColor: selected
-          ? "rgba(13, 148, 136, 0.05)"
+          ? "rgba(13, 148, 136, 0.08)"
           : "rgba(37, 40, 48, 0.5)",
       }}
     >
@@ -104,13 +102,10 @@ export function SendChannelCard({
           ≡
         </span>
 
-        {/* Checkbox */}
-        <div style={selected ? styles.checkboxSelected : styles.checkbox}>
-          {selected && <span style={styles.checkmark}>✓</span>}
-        </div>
-
-        {/* Channel Name */}
-        <span style={styles.channelName}>{channel.displayName}</span>
+          {/* Channel Name */}
+        <span style={{ ...styles.channelName, color: selected ? "#14b8a6" : "#e5e7eb" }}>
+          {channel.displayName}
+        </span>
       </div>
 
       {/* Sub-entities (extended card) */}
@@ -211,33 +206,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     userSelect: "none",
     touchAction: "none",
-  },
-  checkbox: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
-    border: "2px solid #4b5563",
-    backgroundColor: "transparent",
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxSelected: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
-    border: "2px solid #0d9488",
-    backgroundColor: "#0d9488",
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkmark: {
-    color: "#fff",
-    fontSize: 10,
-    lineHeight: 1,
   },
   channelName: {
     fontSize: 13,

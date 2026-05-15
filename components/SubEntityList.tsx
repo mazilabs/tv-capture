@@ -21,6 +21,7 @@ type SubEntityListProps = {
   onRemove: (channelId: number, itemId: number) => void
   onTest: (channelId: number, itemId: number) => void
   isFormActive: boolean // Is the add form for this channel currently open?
+  testStates: Record<string, "idle" | "loading" | "success" | "error">
 }
 
 export function SubEntityList({
@@ -32,6 +33,7 @@ export function SubEntityList({
   onRemove,
   onTest,
   isFormActive,
+  testStates,
 }: SubEntityListProps) {
   const label = platform === "telegram" ? "TOPICS" : "THREADS"
 
@@ -101,6 +103,39 @@ export function SubEntityList({
       color: "#9ca3af",
       transition: "all 150ms",
     },
+    testButtonLoading: {
+      padding: "4px 10px",
+      border: "1px solid #134e4a",
+      borderRadius: 6,
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: "not-allowed",
+      backgroundColor: "rgba(13, 148, 136, 0.08)",
+      color: "#6b7280",
+      whiteSpace: "nowrap" as const,
+    },
+    testButtonSuccess: {
+      padding: "4px 10px",
+      border: "none",
+      borderRadius: 6,
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: "default",
+      backgroundColor: "#10b981",
+      color: "#fff",
+      whiteSpace: "nowrap" as const,
+    },
+    testButtonError: {
+      padding: "4px 10px",
+      border: "none",
+      borderRadius: 6,
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: "default",
+      backgroundColor: "#ef4444",
+      color: "#fff",
+      whiteSpace: "nowrap" as const,
+    },
     addButton: {
       width: "100%",
       padding: "8px 12px",
@@ -136,43 +171,57 @@ export function SubEntityList({
       {items.length === 0 && !isFormActive && (
         <p style={styles.emptyText}>No {label.toLowerCase()} configured</p>
       )}
-      {items.map((item) => (
-        <div key={item.id} style={styles.itemRow}>
-          <span
-            style={styles.itemName}
-            title={`ID: ${item.externalId}`}
-          >
-            {item.name}
-          </span>
-          <div style={styles.itemButtons}>
-            <button
-              style={styles.smallButton}
-              onClick={() => onTest(channelId, item.id)}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-              }}
-              title={`${platform === "telegram" ? "Topic" : "Thread"} ID: ${item.externalId}`}
-            >
-              Test
-            </button>
-            <button
-              style={styles.removeButton}
-              onClick={() => onRemove(channelId, item.id)}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.color = "#ef4444"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.color = "#9ca3af"
-              }}
-            >
-              Remove
-            </button>
+      {items.map((item) => {
+        const testKey =
+          platform === "telegram"
+            ? `topic-${channelId}-${item.id}`
+            : `thread-${channelId}-${item.id}`
+        const testState = testStates[testKey] || "idle"
+
+        return (
+          <div key={item.id} style={styles.itemRow}>
+            <span style={styles.itemName} title={`ID: ${item.externalId}`}>
+              {item.name}
+            </span>
+            <div style={styles.itemButtons}>
+              <button
+                style={
+                  testState === "loading"
+                    ? styles.testButtonLoading
+                    : testState === "success"
+                      ? styles.testButtonSuccess
+                      : testState === "error"
+                        ? styles.testButtonError
+                        : styles.smallButton
+                }
+                onClick={() => onTest(channelId, item.id)}
+                disabled={testState !== "idle"}
+                title={`${platform === "telegram" ? "Topic" : "Thread"} ID: ${item.externalId}`}
+              >
+                {testState === "loading"
+                  ? "Testing..."
+                  : testState === "success"
+                    ? "✓"
+                    : testState === "error"
+                      ? "✗"
+                      : "Test"}
+              </button>
+              <button
+                style={styles.removeButton}
+                onClick={() => onRemove(channelId, item.id)}
+                onMouseEnter={(e) => {
+                  ;(e.target as HTMLButtonElement).style.color = "#ef4444"
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.target as HTMLButtonElement).style.color = "#9ca3af"
+                }}
+              >
+                Remove
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       {/* Add button (visible only when form is NOT active) */}
       {!isFormActive && (

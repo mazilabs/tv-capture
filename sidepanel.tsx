@@ -239,7 +239,6 @@ function CaptureView({
     setCaptureState("capturing")
     setError(null)
     setSendResult(null)
-    clearSelections()
 
     try {
       const response = (await chrome.runtime.sendMessage({
@@ -258,7 +257,7 @@ function CaptureView({
       setError("Failed to capture screenshot")
       setCaptureState("idle")
     }
-  }, [clearSelections])
+  }, [])
 
   // -----------------------------------------------------------------------
   // Handle Send (Phase 8: multi-channel send to all selected targets)
@@ -424,10 +423,11 @@ function CaptureView({
 
       const type: "topic" | "thread" = channel.type === "telegram" ? "topic" : "thread"
       const creds = channel.credentials as TelegramCredentials | DiscordCredentials
-      const subEntities =
+      const rawSubEntities =
         type === "topic"
           ? (creds as TelegramCredentials).topics
           : (creds as DiscordCredentials).threads
+      const subEntities = rawSubEntities.slice().sort((a, b) => a.order - b.order)
 
       const oldIndex = subEntities.findIndex((s) => s.id === active.id)
       const newIndex = subEntities.findIndex((s) => s.id === over.id)
@@ -1316,7 +1316,6 @@ function SettingsView({
             <div style={s.field}>
               <label style={s.label}>Bot Token</label>
               <input
-                type="password"
                 style={s.input}
                 placeholder="e.g. 123456:ABC-DEF..."
                 value={addFormToken}
@@ -1423,7 +1422,6 @@ function SettingsView({
             <div style={s.field}>
               <label style={s.label}>Webhook URL</label>
               <input
-                type="password"
                 style={s.input}
                 placeholder="https://discord.com/api/webhooks/..."
                 value={addFormWebhookUrl}
@@ -2785,7 +2783,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   toast: {
     position: "fixed" as const,
-    bottom: 16,
+    top: 16,
     left: 16,
     right: 16,
     padding: "10px 14px",

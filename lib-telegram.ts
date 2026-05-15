@@ -258,7 +258,7 @@ function mapError(errorCode: number, description: string): string {
         return "This topic no longer exists. It may have been deleted. Remove and re-add the topic in Settings."
       }
       if (desc.includes("topic is closed")) {
-        return "This topic is closed and cannot receive messages."
+        return "This topic is closed and cannot receive messages. Make sure the bot is an admin with 'Manage Topics' permission in your Telegram group."
       }
       return `Invalid request: ${description}`
     }

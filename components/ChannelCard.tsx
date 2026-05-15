@@ -229,7 +229,6 @@ export function ChannelCard({
           <div style={styles.field}>
             <label style={styles.label}>Bot Token</label>
             <input
-              type="password"
               style={styles.input}
               defaultValue={(channel.credentials as TelegramCredentials).botToken}
               placeholder="e.g. 123456:ABC-DEF..."
@@ -272,7 +271,6 @@ export function ChannelCard({
         <div style={styles.field}>
           <label style={styles.label}>Webhook URL</label>
           <input
-            type="password"
             style={styles.input}
             defaultValue={(channel.credentials as DiscordCredentials).webhookUrl}
             placeholder="e.g. https://discord.com/api/webhooks/..."
@@ -304,6 +302,7 @@ export function ChannelCard({
             onRemove={onRemoveTopic}
             onTest={onTestTopic}
             isFormActive={isTopicFormActive}
+            testStates={testStates}
           />
           {/* TopicAddForm inline */}
           {isTopicFormActive && (
@@ -327,6 +326,7 @@ export function ChannelCard({
             onRemove={onRemoveThread}
             onTest={onTestThread}
             isFormActive={isThreadFormActive}
+            testStates={testStates}
           />
           {/* ThreadAddForm inline */}
           {isThreadFormActive && (
