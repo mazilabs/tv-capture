@@ -30,18 +30,43 @@ export type DiscordSendResult =
 
 /**
  * Map Discord HTTP status + response body to user-friendly error messages.
+ *
+ * Discord error codes:
+ *   10003 — Unknown Channel (thread deleted or invalid thread ID)
+ *   10015 — Unknown Webhook (webhook URL invalid or deleted)
  */
 function mapDiscordError(status: number, body: string): string {
+  // Try to parse Discord error code from response body
+  let discordCode: number | null = null
+  try {
+    const data = JSON.parse(body)
+    if (typeof data.code === "number") {
+      discordCode = data.code
+    }
+  } catch {
+    // Ignore parse failure — fall through to status-based mapping
+  }
+
   switch (status) {
-    case 400:
+    case 400: {
+      // 10003 = Unknown Channel → deleted thread or invalid thread ID
+      if (discordCode === 10003) {
+        return "Thread no longer exists. Remove it from Settings."
+      }
       return "Invalid request. Check the webhook URL and thread ID."
+    }
 
     case 401:
     case 403:
-      return "Invalid webhook token. Check your webhook URL."
+      return "Invalid webhook. Check the webhook URL."
 
-    case 404:
-      return "Webhook not found. It may have been deleted."
+    case 404: {
+      // 10015 = Unknown Webhook → webhook URL invalid or deleted
+      if (discordCode === 10015) {
+        return "Webhook not found. Check the webhook URL."
+      }
+      return "Webhook not found. Check the webhook URL."
+    }
 
     case 429: {
       let retryAfter = "a few"

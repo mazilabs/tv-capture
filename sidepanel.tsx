@@ -266,6 +266,7 @@ function SidePanel() {
       })) as SendMultiChannelResponse
 
       const allSuccess = response.results.every((r) => r.success)
+      const someSuccess = response.results.some((r) => r.success)
 
       if (allSuccess) {
         setSendResult({ success: true, targetCount: totalSelectedCount })
@@ -277,10 +278,22 @@ function SidePanel() {
         setCaption("")
         clearSelections()
         handleSetAccordions({ screenshot: false })
-      } else {
+      } else if (someSuccess) {
+        // Partial failure: keep screenshot + message, deselect channels, show info
         setSendResults(response.results)
         setShowSendResultModal(true)
         setCaptureState("captured")
+        clearSelections()
+        setSendResult({
+          success: true,
+          targetCount: response.results.filter((r) => r.success).length,
+        })
+      } else {
+        // Complete failure: keep screenshot + message, deselect channels
+        setSendResults(response.results)
+        setShowSendResultModal(true)
+        setCaptureState("captured")
+        clearSelections()
       }
     } catch {
       setSendResult({ success: false, error: "Failed to send" })
@@ -662,7 +675,7 @@ function CaptureView({
                       onChange={(e) => setCaption(e.target.value)}
                       placeholder="Type your caption..."
                       maxLength={1024}
-                      rows={6}
+                      rows={12}
                       onFocus={(e) => {
                         if (caption.length <= 1024) {
                           (e.target as HTMLTextAreaElement).style.borderColor = "#0d9488"
@@ -770,7 +783,17 @@ function CaptureView({
 
       {/* Fixed: Bottom Button Bar */}
       <div style={s.bottomBar}>
-        {captureState === "idle" && !screenshotUrl && (
+        {/* Footer separator — same width as buttons (determined by bottomBar padding) */}
+        <div style={{ marginBottom: 12, borderTop: "1px solid #2c3038" }} />
+
+        {sendResult ? (
+          /* Send Result replaces buttons for 5s — same field, same width */
+          <div style={sendResult.success ? s.sendSuccessButton : s.sendErrorButton}>
+            {sendResult.success
+              ? `Sent to ${sendResult.targetCount ?? 0} target${(sendResult.targetCount ?? 0) !== 1 ? "s" : ""}`
+              : sendResult.error}
+          </div>
+        ) : captureState === "idle" && !screenshotUrl ? (
           <button
             style={{
               ...s.captureButton,
@@ -792,17 +815,13 @@ function CaptureView({
           >
             {errorButtonActive ? "Not a TradingView page" : "Capture"}
           </button>
-        )}
-
-        {captureState === "capturing" && (
+        ) : captureState === "capturing" ? (
           <button style={{ ...s.buttonLoading, width: "100%" }} disabled>Capturing...</button>
-        )}
-
-        {captureState === "captured" && screenshotUrl && (
+        ) : captureState === "captured" && screenshotUrl ? (
           <div style={{ display: "flex", gap: 8, width: "100%" }}>
             <button
               style={totalSelectedCount > 0 ? s.sendButton : s.sendButtonDisabled}
-              disabled={totalSelectedCount === 0 || captureState === "sending"}
+              disabled={totalSelectedCount === 0}
               onClick={onSend}
               onMouseEnter={(e) => {
                 if (totalSelectedCount > 0) {
@@ -815,9 +834,7 @@ function CaptureView({
                 }
               }}
             >
-              {captureState === "sending"
-                ? "Sending..."
-                : `SEND TO SELECTED (${totalSelectedCount})`}
+              {`SEND TO SELECTED (${totalSelectedCount})`}
             </button>
             <button
               style={s.cancelButton}
@@ -832,25 +849,12 @@ function CaptureView({
               Cancel
             </button>
           </div>
-        )}
+        ) : captureState === "sending" ? (
+          <button style={{ ...s.sendingButton, width: "100%" }} disabled>
+            Sending...
+          </button>
+        ) : null}
       </div>
-
-      {/* Send Result Toast — absolute positioned */}
-      {sendResult && (
-        <div style={{
-          position: "absolute",
-          bottom: 60,
-          left: 16,
-          right: 16,
-          zIndex: 1000,
-        }}>
-          <div style={sendResult.success ? s.sendSuccess : s.sendError}>
-            {sendResult.success
-              ? `Sent to ${sendResult.targetCount ?? 0} target${(sendResult.targetCount ?? 0) !== 1 ? "s" : ""}`
-              : sendResult.error}
-          </div>
-        </div>
-      )}
 
       {/* Send Result Modal (Phase 8 — shown on partial/complete failure) */}
       {showSendResultModal && sendResults && (
@@ -2370,9 +2374,12 @@ const s: Record<string, React.CSSProperties> = {
     scrollbarWidth: "none" as const,
   },
   bottomBar: {
-    padding: "12px 16px",
-    borderTop: "1px solid #2c3038",
+    padding: "12px 0",
     flexShrink: 0,
+    marginLeft: -16,
+    marginRight: -16,
+    paddingLeft: 16,
+    paddingRight: 16,
   },
   loadingText: {
     fontSize: 13,
@@ -2550,13 +2557,14 @@ const s: Record<string, React.CSSProperties> = {
     border: "1px solid #3a3f4a",
     borderRadius: 8,
     fontSize: 14,
-    resize: "none" as const, // Auto-resize via flex
-    minHeight: 80,
+    resize: "none" as const,
+    minHeight: 160,
     fontFamily: "inherit",
     boxSizing: "border-box" as const,
     backgroundColor: "#252830",
     color: "#e5e7eb",
     transition: "border-color 150ms",
+    outline: "none",
   },
   textareaError: {
     flex: 1,
@@ -2566,11 +2574,12 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     fontSize: 14,
     resize: "none" as const,
-    minHeight: 80,
+    minHeight: 160,
     fontFamily: "inherit",
     boxSizing: "border-box" as const,
     backgroundColor: "#252830",
     color: "#e5e7eb",
+    outline: "none",
   },
   counter: {
     fontSize: 11,
@@ -2668,6 +2677,17 @@ const s: Record<string, React.CSSProperties> = {
     backgroundColor: "#134e4a",
     color: "#6b7280",
   },
+  sendingButton: {
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "not-allowed",
+    backgroundColor: "rgba(13, 148, 136, 0.15)",
+    color: "#14b8a6",
+    transition: "all 150ms",
+  },
   // Messages
   errorMessage: {
     marginTop: 8,
@@ -2701,6 +2721,33 @@ const s: Record<string, React.CSSProperties> = {
     backgroundColor: "rgba(239, 68, 68, 0.1)",
     color: "#ef4444",
     border: "1px solid rgba(239, 68, 68, 0.3)",
+  },
+  // Send result as button replacement — same field, same dimensions
+  sendSuccessButton: {
+    width: "100%",
+    padding: "12px 16px",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    textAlign: "center" as const,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    color: "#10b981",
+    border: "1px solid rgba(16, 185, 129, 0.3)",
+    boxSizing: "border-box" as const,
+    cursor: "default",
+  },
+  sendErrorButton: {
+    width: "100%",
+    padding: "12px 16px",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    textAlign: "center" as const,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    color: "#ef4444",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
+    boxSizing: "border-box" as const,
+    cursor: "default",
   },
   // Template styles
   addButton: {

@@ -100,6 +100,16 @@ export function SendResultModal({ results, channels, onClose }: SendResultModalP
           })}
         </div>
 
+        {/* Partial Failure Info — only when some succeeded and some failed */}
+        {!allFailed && (
+          <>
+            <div style={styles.divider} />
+            <p style={styles.infoText}>
+              Your screenshot and message remain selected so you can adjust settings and retry sending to the failed channels. Previous channel selections have been cleared. Tap Cancel to reset everything.
+            </p>
+          </>
+        )}
+
         {/* Action Button */}
         <button
           style={styles.closeButton}
@@ -207,5 +217,12 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: "transparent",
     color: "#9ca3af",
     transition: "all 150ms",
+  },
+  infoText: {
+    fontSize: 12,
+    color: "#9ca3af",
+    lineHeight: 1.5,
+    margin: "0 0 16px",
+    fontStyle: "italic",
   },
 }
