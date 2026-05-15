@@ -260,13 +260,13 @@ function mapError(errorCode: number, description: string): string {
       if (desc.includes("topic is closed")) {
         return "This topic is closed and cannot receive messages. Make sure the bot is an admin with 'Manage Topics' permission in your Telegram group."
       }
-      return `Invalid request: ${description}`
+      return "Invalid request. Please check your Bot Token and Chat ID."
     }
 
     case 429:
       return "Too many requests. Please wait a moment and try again."
 
     default:
-      return `Telegram error (${errorCode}): ${description}`
+      return "An unexpected error occurred. Please check your settings and try again."
   }
 }

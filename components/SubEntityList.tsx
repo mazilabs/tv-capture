@@ -16,7 +16,7 @@ type SubEntityListProps = {
   platform: "telegram" | "discord"
   items: SubEntityItem[]
   channelId: number
-  addButtonText: string // "[+ Add Topic — Paste Share Link]" or "[+ Add Thread]"
+  addButtonText: string // "[+ Add Topic]" or "[+ Add Thread]"
   onAdd: (channelId: number) => void
   onRemove: (channelId: number, itemId: number) => void
   onTest: (channelId: number, itemId: number) => void

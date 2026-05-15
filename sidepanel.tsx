@@ -1161,25 +1161,18 @@ function SettingsView({
       }))
       if (!result.success) {
         setTestErrors((prev) => ({ ...prev, [key]: result.error || "Unknown error" }))
+        setTestErrorModal(result.error || "Test failed. Please check your configuration.")
       } else {
         setTestErrors((prev) => ({ ...prev, [key]: null }))
       }
     } catch {
       setTestStates((prev) => ({ ...prev, [key]: "error" }))
       setTestErrors((prev) => ({ ...prev, [key]: "Unexpected error occurred." }))
+      setTestErrorModal("Unexpected error occurred.")
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 3000)
-  }
-
-  // Update channel — name or credentials
-  const handleUpdateChannel = async (
-    channelId: number,
-    updates: ChannelUpdate
-  ) => {
-    await updateChannel(channelId, updates)
-    await refreshChannels()
+    }, 10000)
   }
 
   // Add topic
@@ -1241,16 +1234,18 @@ function SettingsView({
       }))
       if (!result.success) {
         setTestErrors((prev) => ({ ...prev, [key]: result.error || "Unknown error" }))
+        setTestErrorModal(result.error || "Test failed. Please check your configuration.")
       } else {
         setTestErrors((prev) => ({ ...prev, [key]: null }))
       }
     } catch {
       setTestStates((prev) => ({ ...prev, [key]: "error" }))
       setTestErrors((prev) => ({ ...prev, [key]: "Unexpected error occurred." }))
+      setTestErrorModal("Unexpected error occurred.")
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 3000)
+    }, 10000)
   }
 
   // Add thread
@@ -1311,18 +1306,22 @@ function SettingsView({
       }))
       if (!result.success) {
         setTestErrors((prev) => ({ ...prev, [key]: result.error || "Unknown error" }))
+        setTestErrorModal(result.error || "Test failed. Please check your configuration.")
       } else {
         setTestErrors((prev) => ({ ...prev, [key]: null }))
       }
     } catch {
       setTestStates((prev) => ({ ...prev, [key]: "error" }))
       setTestErrors((prev) => ({ ...prev, [key]: "Unexpected error occurred." }))
+      setTestErrorModal("Unexpected error occurred.")
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 3000)
+    }, 10000)
   }
 
+  // -----------------------------------------------------------------------
+  // Error Modal handlers (Step 9)
   // -----------------------------------------------------------------------
   // Error Modal handlers (Step 9)
   // -----------------------------------------------------------------------
@@ -1330,17 +1329,13 @@ function SettingsView({
   const handleShowTestError = (channelId: number) => {
     const key = `ch-${channelId}`
     const errorMsg = testErrors[key]
-    if (errorMsg) {
-      setTestErrorModal(errorMsg)
-    }
+    setTestErrorModal(errorMsg || "Test failed. Please check your configuration.")
   }
 
   const handleShowSubEntityError = (channelId: number, itemId: number, platform: "telegram" | "discord") => {
     const key = platform === "telegram" ? `topic-${channelId}-${itemId}` : `thread-${channelId}-${itemId}`
     const errorMsg = testErrors[key]
-    if (errorMsg) {
-      setTestErrorModal(errorMsg)
-    }
+    setTestErrorModal(errorMsg || "Test failed. Please check your configuration.")
   }
 
   // -----------------------------------------------------------------------
@@ -1376,6 +1371,11 @@ function SettingsView({
       setEditingTemplate(template)
       setShowTemplateForm(true)
     }
+  }
+
+  const handleUpdateChannel = async (channelId: number, updates: ChannelUpdate) => {
+    await updateChannel(channelId, updates)
+    await refreshChannels()
   }
 
   // Loading state
@@ -2195,7 +2195,7 @@ function HelpView({
               <h2 style={s.helpSectionTitle}>How Topics Work in TV Capture</h2>
               <ul style={s.helpList}>
                 <li><strong>General topic:</strong> Messages sent without a topic selection go to General. The main channel configuration already covers this — no separate setup needed.</li>
-                <li><strong>Custom topics:</strong> Add them via Settings → Telegram Channel → "[+ Add Topic — Paste Share Link]". Paste the Share Link and TV Capture will parse it automatically.</li>
+                <li><strong>Custom topics:</strong> Add them via Settings → Telegram Channel → "[+ Add Topic]". Paste the Share Link and TV Capture will parse it automatically.</li>
                 <li><strong>Manual entry:</strong> If the Share Link doesn't work, use "Enter manually" to type the Topic ID and name.</li>
                 <li><strong>Topic ID 1:</strong> This is reserved for General. TV Capture blocks it — use the main channel instead.</li>
               </ul>

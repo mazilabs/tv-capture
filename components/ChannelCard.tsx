@@ -348,7 +348,7 @@ export function ChannelCard({
             platform="telegram"
             items={subEntities.items}
             channelId={channel.id}
-            addButtonText="+ Add Topic — Paste Share Link"
+            addButtonText="+ Add Topic"
             onAdd={onAddTopic}
             onRemove={onRemoveTopic}
             onTest={onTestTopic}
