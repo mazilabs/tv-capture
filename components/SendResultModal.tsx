@@ -100,15 +100,11 @@ export function SendResultModal({ results, channels, onClose }: SendResultModalP
           })}
         </div>
 
-        {/* Partial Failure Info — only when some succeeded and some failed */}
-        {!allFailed && (
-          <>
-            <div style={styles.divider} />
-            <p style={styles.infoText}>
-              Your screenshot and message remain selected so you can adjust settings and retry sending to the failed channels. Previous channel selections have been cleared. Tap Cancel to reset everything.
-            </p>
-          </>
-        )}
+        {/* Info text — shown for all failures (partial + complete) */}
+        <div style={styles.divider} />
+        <p style={styles.infoText}>
+          Your screenshot and message remain selected so you can adjust settings and retry sending to the failed channels. Previous channel selections have been cleared. Tap Cancel to reset everything.
+        </p>
 
         {/* Action Button */}
         <button

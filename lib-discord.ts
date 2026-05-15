@@ -154,9 +154,16 @@ export async function sendDiscordMessage(
     const body = await response.text()
     return { success: false, error: mapDiscordError(response.status, body) }
   } catch {
+    // If the URL looks like a Discord webhook, the fetch failure is likely
+    // due to an invalid webhook ID/token (404-equivalent at network level).
+    // Give a webhook-specific message instead of generic "network error".
+    const isDiscordWebhook = webhookUrl.includes("discord.com/api/webhooks") ||
+                             webhookUrl.includes("discordapp.com/api/webhooks")
     return {
       success: false,
-      error: "Network error. Please check your internet connection.",
+      error: isDiscordWebhook
+        ? "Webhook not found. Check the webhook URL."
+        : "Network error. Please check your internet connection.",
     }
   }
 }
@@ -206,9 +213,13 @@ export async function sendDiscordImage(
     const body = await response.text()
     return { success: false, error: mapDiscordError(response.status, body) }
   } catch {
+    const isDiscordWebhook = webhookUrl.includes("discord.com/api/webhooks") ||
+                             webhookUrl.includes("discordapp.com/api/webhooks")
     return {
       success: false,
-      error: "Network error. Please check your internet connection.",
+      error: isDiscordWebhook
+        ? "Webhook not found. Check the webhook URL."
+        : "Network error. Please check your internet connection.",
     }
   }
 }
