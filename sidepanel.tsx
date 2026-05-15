@@ -181,7 +181,7 @@ function SidePanel() {
 
   const totalSelectedCount = selectedChannels.size + selectedSubEntities.size
 
-  // ── Shortcut Capture Listener (Opt+S) ──
+  // ── Shortcut Capture Listener (Opt+S + Popup Capture) ──
   useEffect(() => {
     const listener = (message: { type: string; dataUrl?: string; cropped?: boolean }) => {
       if (message.type === MESSAGE_TYPES.SHORTCUT_CAPTURE && message.dataUrl) {
@@ -194,6 +194,7 @@ function SidePanel() {
         setSelectedTemplateId(null)
         setIsCustom(false)
         setCaption("")
+        setView("capture")
         handleSetAccordions({ screenshot: true, message: true, channels: true })
         getChannelsSortedBySendOrder().then(setChannels)
       }
