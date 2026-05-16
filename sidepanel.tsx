@@ -397,6 +397,16 @@ function SidePanel() {
     return () => chrome.runtime.onMessage.removeListener(listener)
   }, [])
 
+  // Refresh channels when returning to capture view (e.g., after editing in Settings)
+  useEffect(() => {
+    if (view === "capture") {
+      getChannelsSortedBySendOrder().then((ch) => {
+        setChannels(ch)
+        setChannelsLoading(false)
+      })
+    }
+  }, [view])
+
   return view === "settings" ? (
     <SettingsView onBack={() => setView("capture")} onHelp={() => setView("help")} />
   ) : view === "help" ? (
@@ -951,6 +961,8 @@ function SettingsView({
 
   // Inline add channel form fields
   const [addFormName, setAddFormName] = useState("")
+  const [addFormAccountName, setAddFormAccountName] = useState("")
+  const [addFormServerName, setAddFormServerName] = useState("")
   const [addFormToken, setAddFormToken] = useState("")
   const [addFormChatId, setAddFormChatId] = useState("")
   const [addFormWebhookUrl, setAddFormWebhookUrl] = useState("")
@@ -1078,6 +1090,8 @@ function SettingsView({
       setActiveFormId(formId)
       // Reset form fields
       setAddFormName("")
+      setAddFormAccountName("")
+      setAddFormServerName("")
       setAddFormToken("")
       setAddFormChatId("")
       setAddFormWebhookUrl("")
@@ -1097,12 +1111,14 @@ function SettingsView({
         type: "telegram",
         botToken: addFormToken.trim(),
         chatId: addFormChatId.trim(),
+        accountName: addFormAccountName.trim() || undefined,
         topics: [],
       }
     } else {
       credentials = {
         type: "discord",
         webhookUrl: addFormWebhookUrl.trim(),
+        serverName: addFormServerName.trim() || undefined,
         threads: [],
       }
     }
@@ -1461,6 +1477,21 @@ function SettingsView({
         {activeFormId === "add-telegram" ? (
           <div style={s.inlineForm}>
             <div style={s.field}>
+              <label style={s.label}>Account Name (optional)</label>
+              <input
+                style={s.input}
+                placeholder="e.g. My Trading Account"
+                value={addFormAccountName}
+                onChange={(e) => setAddFormAccountName(e.target.value)}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                }}
+              />
+            </div>
+            <div style={s.field}>
               <label style={s.label}>Channel Name</label>
               <input
                 style={s.input}
@@ -1581,6 +1612,21 @@ function SettingsView({
         {/* Inline add Discord channel form */}
         {activeFormId === "add-discord" ? (
           <div style={s.inlineForm}>
+            <div style={s.field}>
+              <label style={s.label}>Server Name (optional)</label>
+              <input
+                style={s.input}
+                placeholder="e.g. Trading Server"
+                value={addFormServerName}
+                onChange={(e) => setAddFormServerName(e.target.value)}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                }}
+              />
+            </div>
             <div style={s.field}>
               <label style={s.label}>Channel Name</label>
               <input

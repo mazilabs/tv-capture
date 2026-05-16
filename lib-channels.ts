@@ -37,6 +37,8 @@ export type TelegramCredentials = {
   type: "telegram"
   botToken: string
   chatId: string
+  /** Optional account name for grouping channels visually. */
+  accountName?: string
   /** Topic configurations for this Telegram channel. Always present, default []. */
   topics: TopicConfig[]
 }
@@ -49,6 +51,8 @@ export type TelegramCredentials = {
 export type DiscordCredentials = {
   type: "discord"
   webhookUrl: string
+  /** Optional server name for grouping channels visually. */
+  serverName?: string
   /** Thread configurations for this Discord channel. Always present, default []. */
   threads: ThreadConfig[]
 }

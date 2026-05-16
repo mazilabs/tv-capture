@@ -145,11 +145,27 @@ export function ChannelCard({
       backgroundColor: "rgba(37, 40, 48, 0.5)",
     },
     cardHeader: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: "#9ca3af",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
       marginBottom: 10,
       letterSpacing: "0.02em",
+    },
+    cardHeaderLeft: {
+      fontSize: 14,
+      fontWeight: 600,
+      color: "#e5e7eb",
+    },
+    cardHeaderRight: {
+      fontSize: 13,
+      fontWeight: 400,
+      color: "#6b7280",
+      textAlign: "right",
+      flex: 1,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      marginLeft: 8,
     },
     field: {
       marginBottom: 10,
@@ -246,14 +262,63 @@ export function ChannelCard({
         backgroundColor: isActive ? "rgba(55, 60, 70, 0.5)" : "rgba(37, 40, 48, 0.5)",
       }}
     >
-      {/* Card Header: "TG: Name" / "DC: Name" */}
+      {/* Card Header: "TG: Name" / "DC: Name" + account/server name on right */}
       <div style={styles.cardHeader}>
-        {prefix}: {channel.name}
+        <span style={styles.cardHeaderLeft}>{prefix}: {channel.name}</span>
+        {isTelegram ? (
+          (channel.credentials as TelegramCredentials).accountName ? (
+            <span style={styles.cardHeaderRight}>
+              {(channel.credentials as TelegramCredentials).accountName}
+            </span>
+          ) : null
+        ) : (
+          (channel.credentials as DiscordCredentials).serverName ? (
+            <span style={styles.cardHeaderRight}>
+              {(channel.credentials as DiscordCredentials).serverName}
+            </span>
+          ) : null
+        )}
+      </div>
+
+      {/* Account Name / Server Name Field */}
+      <div style={styles.field}>
+        <label style={styles.label}>{isTelegram ? "Account Name" : "Server Name"}</label>
+        <input
+          style={styles.input}
+          defaultValue={
+            isTelegram
+              ? (channel.credentials as TelegramCredentials).accountName || ""
+              : (channel.credentials as DiscordCredentials).serverName || ""
+          }
+          placeholder={isTelegram ? "e.g. My Trading Account" : "e.g. Trading Server"}
+          onBlur={(e) => {
+            const newValue = e.target.value.trim()
+            if (isTelegram) {
+              const creds = channel.credentials as TelegramCredentials
+              if (newValue !== (creds.accountName || "")) {
+                onUpdateChannel(channel.id, {
+                  credentials: { ...creds, accountName: newValue || undefined },
+                })
+              }
+            } else {
+              const creds = channel.credentials as DiscordCredentials
+              if (newValue !== (creds.serverName || "")) {
+                onUpdateChannel(channel.id, {
+                  credentials: { ...creds, serverName: newValue || undefined },
+                })
+              }
+            }
+            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+          }}
+          onFocus={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+          }}
+        />
       </div>
 
       {/* Editable Name Field */}
       <div style={styles.field}>
-        <label style={styles.label}>Name</label>
+        <label style={styles.label}>Channel Name</label>
         <input
           style={styles.input}
           defaultValue={channel.name}

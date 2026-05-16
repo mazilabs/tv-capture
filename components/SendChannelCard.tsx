@@ -34,7 +34,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { SendSubEntityRow } from "./SendSubEntityRow"
-import type { Channel } from "../lib-channels"
+import type { Channel, TelegramCredentials, DiscordCredentials } from "../lib-channels"
 
 export type SendChannelCardProps = {
   channel: Channel
@@ -108,10 +108,23 @@ export function SendChannelCard({
           ≡
         </span>
 
-          {/* Channel Name */}
+        {/* Channel Name + Account/Server Name */}
         <span style={{ ...styles.channelName, color: selected ? "#14b8a6" : "#e5e7eb" }}>
           {channel.displayName}
         </span>
+        {channel.type === "telegram" ? (
+          (channel.credentials as TelegramCredentials).accountName ? (
+            <span style={styles.metaName}>
+              {(channel.credentials as TelegramCredentials).accountName}
+            </span>
+          ) : null
+        ) : (
+          (channel.credentials as DiscordCredentials).serverName ? (
+            <span style={styles.metaName}>
+              {(channel.credentials as DiscordCredentials).serverName}
+            </span>
+          ) : null
+        )}
       </div>
 
       {/* Sub-entities (extended card) */}
@@ -221,6 +234,17 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  metaName: {
+    fontSize: 12,
+    fontWeight: 400,
+    color: "#6b7280",
+    textAlign: "right",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    marginLeft: 8,
+    maxWidth: "50%",
   },
   separator: {
     height: 0,
