@@ -6,7 +6,6 @@
  * Updated: Dark Glassmorphism theme (2026-04-20)
  */
 
-import { useState, useRef, useEffect } from "react"
 import type { Template } from "../lib-templates"
 
 // ---------------------------------------------------------------------------
@@ -28,22 +27,6 @@ export function TemplateListItem({
   onEdit,
   onDelete,
 }: TemplateListItemProps) {
-  const [showMenu, setShowMenu] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!showMenu) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [showMenu])
 
   const styles: Record<string, React.CSSProperties> = {
     container: {
@@ -65,104 +48,59 @@ export function TemplateListItem({
       textOverflow: "ellipsis",
       whiteSpace: "nowrap" as const,
     },
-    menuButton: {
-      background: "none",
-      border: "none",
-      padding: "4px 8px",
+    editButton: {
+      padding: "6px 12px",
+      border: "1px solid #3a3f4a",
+      borderRadius: 6,
+      fontSize: 12,
+      fontWeight: 600,
       cursor: "pointer",
+      backgroundColor: "transparent",
+      color: "#9ca3af",
+      transition: "all 150ms",
+    },
+    deleteButton: {
+      padding: "6px 8px",
+      border: "none",
+      background: "none",
       fontSize: 16,
       color: "#6b7280",
-    },
-    menuWrapper: {
-      position: "relative" as const,
-    },
-    menu: {
-      position: "absolute" as const,
-      right: 0,
-      top: "100%",
-      backgroundColor: "#252830",
-      border: "1px solid #3a3f4a",
-      borderRadius: 8,
-      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-      zIndex: 100,
-      minWidth: 100,
-      backdropFilter: "blur(12px)",
-      WebkitBackdropFilter: "blur(12px)",
-    },
-    menuItem: {
-      display: "block",
-      width: "100%",
-      padding: "10px 14px",
-      border: "none",
-      background: "none",
-      textAlign: "left" as const,
-      fontSize: 13,
       cursor: "pointer",
-      color: "#9ca3af",
-      transition: "background-color 100ms",
-    },
-    menuItemDelete: {
-      display: "block",
-      width: "100%",
-      padding: "10px 14px",
-      border: "none",
-      background: "none",
-      borderTop: "1px solid #3a3f4a",
-      textAlign: "left" as const,
-      fontSize: 13,
-      cursor: "pointer",
-      color: "#ef4444",
-      transition: "background-color 100ms",
+      lineHeight: 1,
+      transition: "color 150ms",
     },
   }
 
   return (
     <div style={styles.container} data-id={template.id}>
       <span style={styles.name}>{template.name}</span>
-      <div style={styles.menuWrapper} ref={menuRef}>
+      <div style={{ display: "flex", gap: 2, alignItems: "center", flexShrink: 0 }}>
         <button
-          style={styles.menuButton}
-          onClick={(e) => {
-            e.stopPropagation()
-            setShowMenu(!showMenu)
+          style={styles.editButton}
+          onClick={() => onEdit(template.id)}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.borderColor = "#4b5563"
+            ;(e.target as HTMLButtonElement).style.color = "#e5e7eb"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.borderColor = "#3a3f4a"
+            ;(e.target as HTMLButtonElement).style.color = "#9ca3af"
           }}
         >
-          ⋮
+          Edit
         </button>
-        {showMenu && (
-          <div style={styles.menu}>
-            <button
-              style={styles.menuItem}
-              onClick={() => {
-                setShowMenu(false)
-                onEdit(template.id)
-              }}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-              }}
-            >
-              Edit
-            </button>
-            <button
-              style={styles.menuItemDelete}
-              onClick={() => {
-                setShowMenu(false)
-                onDelete(template.id)
-              }}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "rgba(239, 68, 68, 0.1)"
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-              }}
-            >
-              Delete
-            </button>
-          </div>
-        )}
+        <button
+          style={styles.deleteButton}
+          onClick={() => onDelete(template.id)}
+          onMouseEnter={(e) => {
+            (e.target as HTMLButtonElement).style.color = "#ef4444"
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.color = "#6b7280"
+          }}
+        >
+          ×
+        </button>
       </div>
     </div>
   )

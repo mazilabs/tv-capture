@@ -6,7 +6,7 @@
  * The add button opens an inline form managed by the parent.
  */
 
-import { useState, useRef, useEffect } from "react"
+
 
 type SubEntityItem = {
   id: number // TopicConfig.id or ThreadConfig.id
@@ -48,22 +48,6 @@ export function SubEntityList({
   renderEditForm,
 }: SubEntityListProps) {
   const label = platform === "telegram" ? "TOPICS" : "THREADS"
-  const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!menuOpenId) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpenId(null)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [menuOpenId])
 
   const styles: Record<string, React.CSSProperties> = {
     container: {
@@ -154,54 +138,28 @@ export function SubEntityList({
       color: "#fff",
       whiteSpace: "nowrap" as const,
     },
-    menuButton: {
-      background: "none",
-      border: "none",
-      padding: "2px 6px",
+    editButton: {
+      padding: "4px 10px",
+      border: "1px solid #3a3f4a",
+      borderRadius: 6,
+      fontSize: 11,
+      fontWeight: 600,
       cursor: "pointer",
+      backgroundColor: "transparent",
+      color: "#9ca3af",
+      transition: "all 150ms",
+      whiteSpace: "nowrap" as const,
+    },
+    deleteButton: {
+      padding: "4px 6px",
+      border: "none",
+      background: "none",
       fontSize: 14,
       color: "#6b7280",
+      cursor: "pointer",
       lineHeight: 1,
-    },
-    menuWrapper: {
-      position: "relative" as const,
-    },
-    menu: {
-      position: "absolute" as const,
-      right: 0,
-      top: "100%",
-      backgroundColor: "#252830",
-      border: "1px solid #3a3f4a",
-      borderRadius: 8,
-      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-      zIndex: 100,
-      minWidth: 100,
-      marginTop: 4,
-    },
-    menuItem: {
-      display: "block",
-      width: "100%",
-      padding: "8px 12px",
-      border: "none",
-      background: "none",
-      textAlign: "left" as const,
-      fontSize: 13,
-      cursor: "pointer",
-      color: "#9ca3af",
-      transition: "background-color 100ms",
-    },
-    menuItemDelete: {
-      display: "block",
-      width: "100%",
-      padding: "8px 12px",
-      border: "none",
-      background: "none",
-      borderTop: "1px solid #3a3f4a",
-      textAlign: "left" as const,
-      fontSize: 13,
-      cursor: "pointer",
-      color: "#ef4444",
-      transition: "background-color 100ms",
+      transition: "color 150ms",
+      marginLeft: -4,
     },
     addButton: {
       width: "100%",
@@ -244,7 +202,6 @@ export function SubEntityList({
             ? `topic-${channelId}-${item.id}`
             : `thread-${channelId}-${item.id}`
         const testState = testStates[testKey] || "idle"
-        const isMenuOpen = menuOpenId === item.id
 
         return (
           <div key={item.id}>
@@ -285,51 +242,32 @@ export function SubEntityList({
                         ? "✗"
                         : "Test"}
                 </button>
-                <div style={styles.menuWrapper} ref={isMenuOpen ? menuRef : undefined}>
-                  <button
-                    style={styles.menuButton}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setMenuOpenId(isMenuOpen ? null : item.id)
-                    }}
-                  >
-                    ⋮
-                  </button>
-                  {isMenuOpen && (
-                    <div style={styles.menu}>
-                      <button
-                        style={styles.menuItem}
-                        onClick={() => {
-                          setMenuOpenId(null)
-                          onEdit(channelId, item.id)
-                        }}
-                        onMouseEnter={(e) => {
-                          ;(e.target as HTMLButtonElement).style.backgroundColor = "#2c3038"
-                        }}
-                        onMouseLeave={(e) => {
-                          ;(e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        style={styles.menuItemDelete}
-                        onClick={() => {
-                          setMenuOpenId(null)
-                          onDelete(channelId, item.id, item.name)
-                        }}
-                        onMouseEnter={(e) => {
-                          ;(e.target as HTMLButtonElement).style.backgroundColor = "rgba(239, 68, 68, 0.1)"
-                        }}
-                        onMouseLeave={(e) => {
-                          ;(e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <button
+                  style={styles.editButton}
+                  onClick={() => onEdit(channelId, item.id)}
+                  onMouseEnter={(e) => {
+                    (e.target as HTMLButtonElement).style.borderColor = "#4b5563"
+                    ;(e.target as HTMLButtonElement).style.color = "#e5e7eb"
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.target as HTMLButtonElement).style.borderColor = "#3a3f4a"
+                    ;(e.target as HTMLButtonElement).style.color = "#9ca3af"
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  style={styles.deleteButton}
+                  onClick={() => onDelete(channelId, item.id, item.name)}
+                  onMouseEnter={(e) => {
+                    (e.target as HTMLButtonElement).style.color = "#ef4444"
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.target as HTMLButtonElement).style.color = "#6b7280"
+                  }}
+                >
+                  ×
+                </button>
               </div>
             </div>
             {/* Inline edit form */}
