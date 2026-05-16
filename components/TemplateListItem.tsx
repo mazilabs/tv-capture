@@ -16,6 +16,10 @@ type TemplateListItemProps = {
   template: Template
   onEdit: (id: number) => void
   onDelete: (id: number) => void
+  dragHandleProps?: {
+    attributes: Record<string, unknown>
+    listeners: Record<string, unknown> | undefined
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -26,18 +30,27 @@ export function TemplateListItem({
   template,
   onEdit,
   onDelete,
+  dragHandleProps,
 }: TemplateListItemProps) {
 
   const styles: Record<string, React.CSSProperties> = {
     container: {
       display: "flex",
       alignItems: "center",
-      justifyContent: "space-between",
+      gap: 8,
       padding: "12px 16px",
       border: "1px solid #3a3f4a",
       borderRadius: 8,
       marginBottom: 8,
       backgroundColor: "rgba(37, 40, 48, 0.5)",
+    },
+    dragHandle: {
+      cursor: "grab",
+      fontSize: 14,
+      color: "#6b7280",
+      flexShrink: 0,
+      userSelect: "none",
+      touchAction: "none",
     },
     name: {
       fontSize: 14,
@@ -73,6 +86,15 @@ export function TemplateListItem({
 
   return (
     <div style={styles.container} data-id={template.id}>
+      {/* Drag Handle */}
+      <span
+        data-drag-handle
+        style={styles.dragHandle}
+        {...(dragHandleProps?.listeners || {})}
+        {...(dragHandleProps?.attributes || {})}
+      >
+        ≡
+      </span>
       <span style={styles.name}>{template.name}</span>
       <div style={{ display: "flex", gap: 2, alignItems: "center", flexShrink: 0 }}>
         <button

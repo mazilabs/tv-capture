@@ -803,12 +803,13 @@ export async function updateThreadInChannel(
 
 export type SettingsUIState = {
   collapsedCards: Record<string, boolean>
+  sections?: Record<string, boolean>
 }
 
 const SETTINGS_UI_KEY = "tv-capture-settings-ui"
 
 function createDefaultSettingsUIState(): SettingsUIState {
-  return { collapsedCards: {} }
+  return { collapsedCards: {}, sections: {} }
 }
 
 export async function loadSettingsUIState(): Promise<SettingsUIState> {
@@ -825,6 +826,10 @@ export async function loadSettingsUIState(): Promise<SettingsUIState> {
       const fresh = createDefaultSettingsUIState()
       await chrome.storage.local.set({ [SETTINGS_UI_KEY]: fresh })
       return fresh
+    }
+    // Ensure sections field exists (backward compatibility)
+    if (!state.sections || typeof state.sections !== "object") {
+      state.sections = {}
     }
     return state
   } catch {

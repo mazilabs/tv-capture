@@ -1016,8 +1016,8 @@ function SettingsView({
   // Card focus/active state (Step 10)
   const [activeCardId, setActiveCardId] = useState<number | null>(null)
 
-  // Settings UI collapse state (Phase 33)
-  const [settingsUIState, setSettingsUIState] = useState<SettingsUIState>({ collapsedCards: {} })
+  // Settings UI collapse state (Phase 33) + section states
+  const [settingsUIState, setSettingsUIState] = useState<SettingsUIState>({ collapsedCards: {}, sections: {} })
 
   // Drag & Drop state
   const [dragActiveId, setDragActiveId] = useState<number | null>(null)
@@ -1068,9 +1068,25 @@ function SettingsView({
     const key = channelId.toString()
     setSettingsUIState((prev) => {
       const newState = {
+        ...prev,
         collapsedCards: {
           ...prev.collapsedCards,
           [key]: !prev.collapsedCards[key],
+        },
+      }
+      saveSettingsUIState(newState)
+      return newState
+    })
+  }, [])
+
+  // Toggle section open/close (controlled mode)
+  const handleToggleSection = useCallback((sectionKey: string) => {
+    setSettingsUIState((prev) => {
+      const newState = {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          [sectionKey]: !prev.sections?.[sectionKey],
         },
       }
       saveSettingsUIState(newState)
@@ -1550,7 +1566,11 @@ function SettingsView({
       {/* Scrollable: all accordion sections */}
       <div style={s.scrollableContent}>
       {/* Telegram Channels Section */}
-      <CollapsibleSection title="TELEGRAM CHANNELS" defaultOpen={true}>
+      <CollapsibleSection
+        title="TELEGRAM CHANNELS"
+        isOpen={settingsUIState.sections?.telegram !== false}
+        onToggle={() => handleToggleSection("telegram")}
+      >
         {telegramChannels.map((channel) => (
           <ChannelCard
             key={channel.id}
@@ -1696,7 +1716,11 @@ function SettingsView({
       </CollapsibleSection>
 
       {/* Discord Channels Section */}
-      <CollapsibleSection title="DISCORD CHANNELS" defaultOpen={true}>
+      <CollapsibleSection
+        title="DISCORD CHANNELS"
+        isOpen={settingsUIState.sections?.discord !== false}
+        onToggle={() => handleToggleSection("discord")}
+      >
         {discordChannels.map((channel) => (
           <ChannelCard
             key={channel.id}
@@ -1824,29 +1848,12 @@ function SettingsView({
         )}
       </CollapsibleSection>
 
-      {/* Keyboard Shortcuts Section */}
-      <CollapsibleSection title="Keyboard Shortcuts">
-        <div style={s.shortcutRow}>
-          <kbd style={s.kbd}>Opt</kbd>
-          <span style={s.shortcutPlus}>+</span>
-          <kbd style={s.kbd}>S</kbd>
-          <span style={s.shortcutLabel}>Capture chart</span>
-        </div>
-
-        <p style={s.shortcutHint}>
-          Works on TradingView charts. The chart area is auto-detected and cropped.
-        </p>
-
-        <button
-          style={s.shortcutLink}
-          onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
-        >
-          Change shortcut in Chrome settings
-        </button>
-      </CollapsibleSection>
-
-      {/* Templates Section */}
-      <CollapsibleSection title="Templates" defaultOpen={false}>
+      {/* Message Templates Section */}
+      <CollapsibleSection
+        title="Message Templates"
+        isOpen={settingsUIState.sections?.["message-templates"] === true}
+        onToggle={() => handleToggleSection("message-templates")}
+      >
         {showTemplateForm ? (
           <TemplateForm
             mode={editingTemplate ? "edit" : "create"}
@@ -1901,6 +1908,31 @@ function SettingsView({
             </button>
           </>
         )}
+      </CollapsibleSection>
+
+      {/* Keyboard Shortcuts Section */}
+      <CollapsibleSection
+        title="Keyboard Shortcuts"
+        isOpen={settingsUIState.sections?.shortcuts === true}
+        onToggle={() => handleToggleSection("shortcuts")}
+      >
+        <div style={s.shortcutRow}>
+          <kbd style={s.kbd}>Opt</kbd>
+          <span style={s.shortcutPlus}>+</span>
+          <kbd style={s.kbd}>S</kbd>
+          <span style={s.shortcutLabel}>Capture chart</span>
+        </div>
+
+        <p style={s.shortcutHint}>
+          Works on TradingView charts. The chart area is auto-detected and cropped.
+        </p>
+
+        <button
+          style={s.shortcutLink}
+          onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
+        >
+          Change shortcut in Chrome settings
+        </button>
       </CollapsibleSection>
 
       {/* Delete Confirmation for Templates (unchanged) */}

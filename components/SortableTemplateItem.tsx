@@ -54,11 +54,12 @@ export function SortableTemplateItem({
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style}>
       <TemplateListItem
         template={template}
         onEdit={onEdit}
         onDelete={onDelete}
+        dragHandleProps={{ attributes, listeners }}
       />
     </div>
   )
