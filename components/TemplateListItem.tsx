@@ -33,11 +33,11 @@ export function TemplateListItem({
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: "12px 14px",
+      padding: "12px 16px",
       border: "1px solid #3a3f4a",
       borderRadius: 8,
       marginBottom: 8,
-      backgroundColor: "rgba(40, 48, 56, 0.7)",
+      backgroundColor: "rgba(37, 40, 48, 0.5)",
     },
     name: {
       fontSize: 14,
@@ -49,7 +49,7 @@ export function TemplateListItem({
       whiteSpace: "nowrap" as const,
     },
     editButton: {
-      padding: "6px 12px",
+      padding: "4px 12px",
       border: "1px solid #3a3f4a",
       borderRadius: 6,
       fontSize: 12,
@@ -60,7 +60,7 @@ export function TemplateListItem({
       transition: "all 150ms",
     },
     deleteButton: {
-      padding: "6px 8px",
+      padding: "4px 8px",
       border: "none",
       background: "none",
       fontSize: 16,

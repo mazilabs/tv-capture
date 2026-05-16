@@ -798,6 +798,45 @@ export async function updateThreadInChannel(
 }
 
 // ---------------------------------------------------------------------------
+// Settings UI State
+// ---------------------------------------------------------------------------
+
+export type SettingsUIState = {
+  collapsedCards: Record<string, boolean>
+}
+
+const SETTINGS_UI_KEY = "tv-capture-settings-ui"
+
+function createDefaultSettingsUIState(): SettingsUIState {
+  return { collapsedCards: {} }
+}
+
+export async function loadSettingsUIState(): Promise<SettingsUIState> {
+  try {
+    const result = await chrome.storage.local.get(SETTINGS_UI_KEY)
+    const raw = result[SETTINGS_UI_KEY]
+    if (!raw) {
+      const fresh = createDefaultSettingsUIState()
+      await chrome.storage.local.set({ [SETTINGS_UI_KEY]: fresh })
+      return fresh
+    }
+    const state = raw as SettingsUIState
+    if (!state.collapsedCards || typeof state.collapsedCards !== "object") {
+      const fresh = createDefaultSettingsUIState()
+      await chrome.storage.local.set({ [SETTINGS_UI_KEY]: fresh })
+      return fresh
+    }
+    return state
+  } catch {
+    return createDefaultSettingsUIState()
+  }
+}
+
+export async function saveSettingsUIState(state: SettingsUIState): Promise<void> {
+  await chrome.storage.local.set({ [SETTINGS_UI_KEY]: state })
+}
+
+// ---------------------------------------------------------------------------
 // Send UI Functions
 // ---------------------------------------------------------------------------
 

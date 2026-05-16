@@ -62,11 +62,14 @@ import {
   getChannelsSortedBySendOrder,
   updateChannelSendOrder,
   updateSubEntityOrder,
+  loadSettingsUIState,
+  saveSettingsUIState,
   type Channel,
   type ChannelUpdate,
   type ChannelCredentials,
   type TelegramCredentials,
   type DiscordCredentials,
+  type SettingsUIState,
 } from "./lib-channels"
 import { ConfirmDialog } from "./components/ConfirmDialog"
 import { ChannelCard } from "./components/ChannelCard"
@@ -1013,6 +1016,9 @@ function SettingsView({
   // Card focus/active state (Step 10)
   const [activeCardId, setActiveCardId] = useState<number | null>(null)
 
+  // Settings UI collapse state (Phase 33)
+  const [settingsUIState, setSettingsUIState] = useState<SettingsUIState>({ collapsedCards: {} })
+
   // Drag & Drop state
   const [dragActiveId, setDragActiveId] = useState<number | null>(null)
 
@@ -1032,6 +1038,7 @@ function SettingsView({
       setChannels(ch)
       setLoading(false)
     })
+    loadSettingsUIState().then(setSettingsUIState)
   }, [])
 
   // Load templates
@@ -1055,6 +1062,21 @@ function SettingsView({
   // Split channels by platform
   const telegramChannels = channels.filter((ch) => ch.type === "telegram")
   const discordChannels = channels.filter((ch) => ch.type === "discord")
+
+  // Toggle card collapse (Phase 33)
+  const handleToggleCollapse = useCallback((channelId: number) => {
+    const key = channelId.toString()
+    setSettingsUIState((prev) => {
+      const newState = {
+        collapsedCards: {
+          ...prev.collapsedCards,
+          [key]: !prev.collapsedCards[key],
+        },
+      }
+      saveSettingsUIState(newState)
+      return newState
+    })
+  }, [])
 
   // -----------------------------------------------------------------------
   // Drag & Drop handlers (templates — unchanged)
@@ -1567,6 +1589,8 @@ function SettingsView({
             isActive={activeCardId === channel.id}
             onCardFocus={() => setActiveCardId(channel.id)}
             onCardBlur={() => setActiveCardId(null)}
+            isCollapsed={settingsUIState.collapsedCards[channel.id.toString()] || false}
+            onToggleCollapse={() => handleToggleCollapse(channel.id)}
           />
         ))}
 
@@ -1711,6 +1735,8 @@ function SettingsView({
             isActive={activeCardId === channel.id}
             onCardFocus={() => setActiveCardId(channel.id)}
             onCardBlur={() => setActiveCardId(null)}
+            isCollapsed={settingsUIState.collapsedCards[channel.id.toString()] || false}
+            onToggleCollapse={() => handleToggleCollapse(channel.id)}
           />
         ))}
 
@@ -2921,15 +2947,15 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(37, 40, 48, 0.5)",
     color: "#14b8a6",
-    marginTop: 8,
+    marginTop: 0,
     transition: "all 150ms",
   },
   hintText: {
     fontSize: 12,
     color: "#6b7280",
-    margin: "0 0 12px 0",
+    margin: "0 0 8px 0",
     fontStyle: "italic" as const,
   },
   // Delete confirmation popup

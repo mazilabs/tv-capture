@@ -59,7 +59,7 @@ export function CollapsibleSection({
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: "12px 0",
+      padding: "8px 0",
       cursor: "pointer",
       userSelect: "none" as const,
       borderBottom: "1px solid #3a3f4a",
@@ -101,8 +101,8 @@ export function CollapsibleSection({
     },
     // Content padding - always present for consistent spacing
     content: {
-      paddingTop: 12,
-      paddingBottom: 4,
+      paddingTop: 8,
+      paddingBottom: 8,
     },
   }
 

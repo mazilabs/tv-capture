@@ -56,6 +56,8 @@ type ChannelCardProps = {
   isActive?: boolean
   onCardFocus?: () => void
   onCardBlur?: () => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 export function ChannelCard({
@@ -91,6 +93,8 @@ export function ChannelCard({
   isActive,
   onCardFocus,
   onCardBlur,
+  isCollapsed = false,
+  onToggleCollapse,
 }: ChannelCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -161,9 +165,9 @@ export function ChannelCard({
   const styles: Record<string, React.CSSProperties> = {
     card: {
       border: "1px solid #3a3f4a",
-      borderRadius: 10,
-      padding: 12,
-      marginBottom: 10,
+      borderRadius: 8,
+      padding: "12px 16px",
+      marginBottom: 8,
       backgroundColor: "rgba(37, 40, 48, 0.5)",
     },
     cardHeader: {
@@ -285,8 +289,31 @@ export function ChannelCard({
       }}
     >
       {/* Card Header: "TG: Name" / "DC: Name" + account/server name on right */}
-      <div style={styles.cardHeader}>
-        <span style={styles.cardHeaderLeft}>{prefix}: {channel.name}</span>
+      <div
+        style={{
+          ...styles.cardHeader,
+          cursor: onToggleCollapse ? "pointer" : "default",
+          marginBottom: isCollapsed ? 0 : 10,
+        }}
+        onClick={onToggleCollapse}
+      >
+        <span style={styles.cardHeaderLeft}>
+          {onToggleCollapse && (
+            <span
+              style={{
+                fontSize: 10,
+                color: "#6b7280",
+                marginRight: 6,
+                display: "inline-block",
+                transition: "transform 250ms cubic-bezier(0.4, 0, 0.2, 1)",
+                transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)",
+              }}
+            >
+              ▶
+            </span>
+          )}
+          {prefix}: {channel.name}
+        </span>
         {isTelegram ? (
           (channel.credentials as TelegramCredentials).accountName ? (
             <span style={styles.cardHeaderRight}>
@@ -302,78 +329,42 @@ export function ChannelCard({
         )}
       </div>
 
-      {/* Account Name / Server Name Field */}
-      <div style={styles.field}>
-        <label style={styles.label}>{isTelegram ? "Account Name" : "Server Name"}</label>
-        <input
-          style={styles.input}
-          defaultValue={
-            isTelegram
-              ? (channel.credentials as TelegramCredentials).accountName || ""
-              : (channel.credentials as DiscordCredentials).serverName || ""
-          }
-          placeholder={isTelegram ? "e.g. My Trading Account" : "e.g. Trading Server"}
-          onBlur={(e) => {
-            const newValue = e.target.value.trim()
-            if (isTelegram) {
-              const creds = channel.credentials as TelegramCredentials
-              if (newValue !== (creds.accountName || "")) {
-                onUpdateChannel(channel.id, {
-                  credentials: { ...creds, accountName: newValue || undefined },
-                })
-              }
-            } else {
-              const creds = channel.credentials as DiscordCredentials
-              if (newValue !== (creds.serverName || "")) {
-                onUpdateChannel(channel.id, {
-                  credentials: { ...creds, serverName: newValue || undefined },
-                })
-              }
-            }
-            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-          }}
-          onFocus={(e) => {
-            (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-          }}
-        />
-      </div>
-
-      {/* Editable Name Field */}
-      <div style={styles.field}>
-        <label style={styles.label}>Channel Name</label>
-        <input
-          style={styles.input}
-          defaultValue={channel.name}
-          placeholder="Channel name"
-          onBlur={(e) => {
-            const newName = e.target.value.trim()
-            if (newName && newName !== channel.name) {
-              onUpdateChannel(channel.id, { name: newName })
-            }
-            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-          }}
-          onFocus={(e) => {
-            (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-          }}
-        />
-      </div>
-
-      {/* Platform-specific Credential Fields */}
-      {isTelegram ? (
-        <>
+      {/* Expandable Body */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: isCollapsed ? "0fr" : "1fr",
+          transition: "grid-template-rows 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      >
+        <div style={{ overflow: "hidden" }}>
+          {/* Account Name / Server Name Field */}
           <div style={styles.field}>
-            <label style={styles.label}>Bot Token</label>
+            <label style={styles.label}>{isTelegram ? "Account Name" : "Server Name"}</label>
             <input
               style={styles.input}
-              defaultValue={(channel.credentials as TelegramCredentials).botToken}
-              placeholder="e.g. 123456:ABC-DEF..."
+              defaultValue={
+                isTelegram
+                  ? (channel.credentials as TelegramCredentials).accountName || ""
+                  : (channel.credentials as DiscordCredentials).serverName || ""
+              }
+              placeholder={isTelegram ? "e.g. My Trading Account" : "e.g. Trading Server"}
               onBlur={(e) => {
-                const creds = channel.credentials as TelegramCredentials
-                const newToken = e.target.value
-                if (newToken !== creds.botToken) {
-                  onUpdateChannel(channel.id, {
-                    credentials: { ...creds, botToken: newToken },
-                  })
+                const newValue = e.target.value.trim()
+                if (isTelegram) {
+                  const creds = channel.credentials as TelegramCredentials
+                  if (newValue !== (creds.accountName || "")) {
+                    onUpdateChannel(channel.id, {
+                      credentials: { ...creds, accountName: newValue || undefined },
+                    })
+                  }
+                } else {
+                  const creds = channel.credentials as DiscordCredentials
+                  if (newValue !== (creds.serverName || "")) {
+                    onUpdateChannel(channel.id, {
+                      credentials: { ...creds, serverName: newValue || undefined },
+                    })
+                  }
                 }
                 (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }}
@@ -382,19 +373,18 @@ export function ChannelCard({
               }}
             />
           </div>
+
+          {/* Editable Name Field */}
           <div style={styles.field}>
-            <label style={styles.label}>Chat ID</label>
+            <label style={styles.label}>Channel Name</label>
             <input
               style={styles.input}
-              defaultValue={(channel.credentials as TelegramCredentials).chatId}
-              placeholder="e.g. -1001234567890"
+              defaultValue={channel.name}
+              placeholder="Channel name"
               onBlur={(e) => {
-                const creds = channel.credentials as TelegramCredentials
-                const newChatId = e.target.value
-                if (newChatId !== creds.chatId) {
-                  onUpdateChannel(channel.id, {
-                    credentials: { ...creds, chatId: newChatId },
-                  })
+                const newName = e.target.value.trim()
+                if (newName && newName !== channel.name) {
+                  onUpdateChannel(channel.id, { name: newName })
                 }
                 (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
               }}
@@ -403,180 +393,228 @@ export function ChannelCard({
               }}
             />
           </div>
-        </>
-      ) : (
-        <div style={styles.field}>
-          <label style={styles.label}>Webhook URL</label>
-          <input
-            style={styles.input}
-            defaultValue={(channel.credentials as DiscordCredentials).webhookUrl}
-            placeholder="e.g. https://discord.com/api/webhooks/..."
-            onBlur={(e) => {
-              const creds = channel.credentials as DiscordCredentials
-              const newUrl = e.target.value
-              if (newUrl !== creds.webhookUrl) {
-                onUpdateChannel(channel.id, {
-                  credentials: { ...creds, webhookUrl: newUrl },
-                })
-              }
-              (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-            }}
-            onFocus={(e) => {
-              (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-            }}
-          />
-        </div>
-      )}
 
-      {/* Sub-Entity Section */}
-      {isTelegram ? (
-        <>
-          <SubEntityList
-            platform="telegram"
-            items={subEntities.items}
-            channelId={channel.id}
-            addButtonText="+ Add Topic"
-            onAdd={onAddTopic}
-            onEdit={onEditTopic}
-            onDelete={onDeleteTopic}
-            onTest={onTestTopic}
-            isFormActive={isTopicFormActive}
-            testStates={testStates}
-            testErrors={testErrors}
-            onShowError={onShowSubEntityError}
-            editingItemId={editingTopicId}
-            renderEditForm={(itemId) => {
-              const topic = topicsList.find((t) => t.id === itemId)
-              if (!topic) return null
-              const chatId = (channel.credentials as TelegramCredentials).chatId
-              // Strip -100 prefix for share link reconstruction (parser expects raw numeric chat ID)
-              const rawChatId = chatId?.startsWith("-100") ? chatId.slice(4) : chatId
-              const initialShareLink = rawChatId
-                ? `https://t.me/c/${rawChatId}/${topic.topicId}`
-                : ""
-              return (
-                <TopicEditForm
+          {/* Platform-specific Credential Fields */}
+          {isTelegram ? (
+            <>
+              <div style={styles.field}>
+                <label style={styles.label}>Bot Token</label>
+                <input
+                  style={styles.input}
+                  defaultValue={(channel.credentials as TelegramCredentials).botToken}
+                  placeholder="e.g. 123456:ABC-DEF..."
+                  onBlur={(e) => {
+                    const creds = channel.credentials as TelegramCredentials
+                    const newToken = e.target.value
+                    if (newToken !== creds.botToken) {
+                      onUpdateChannel(channel.id, {
+                        credentials: { ...creds, botToken: newToken },
+                      })
+                    }
+                    (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                  }}
+                  onFocus={(e) => {
+                    (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                  }}
+                />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Chat ID</label>
+                <input
+                  style={styles.input}
+                  defaultValue={(channel.credentials as TelegramCredentials).chatId}
+                  placeholder="e.g. -1001234567890"
+                  onBlur={(e) => {
+                    const creds = channel.credentials as TelegramCredentials
+                    const newChatId = e.target.value
+                    if (newChatId !== creds.chatId) {
+                      onUpdateChannel(channel.id, {
+                        credentials: { ...creds, chatId: newChatId },
+                      })
+                    }
+                    (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                  }}
+                  onFocus={(e) => {
+                    (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <div style={styles.field}>
+              <label style={styles.label}>Webhook URL</label>
+              <input
+                style={styles.input}
+                defaultValue={(channel.credentials as DiscordCredentials).webhookUrl}
+                placeholder="e.g. https://discord.com/api/webhooks/..."
+                onBlur={(e) => {
+                  const creds = channel.credentials as DiscordCredentials
+                  const newUrl = e.target.value
+                  if (newUrl !== creds.webhookUrl) {
+                    onUpdateChannel(channel.id, {
+                      credentials: { ...creds, webhookUrl: newUrl },
+                    })
+                  }
+                  (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+                }}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+                }}
+              />
+            </div>
+          )}
+
+          {/* Sub-Entity Section */}
+          {isTelegram ? (
+            <>
+              <SubEntityList
+                platform="telegram"
+                items={subEntities.items}
+                channelId={channel.id}
+                addButtonText="+ Add Topic"
+                onAdd={onAddTopic}
+                onEdit={onEditTopic}
+                onDelete={onDeleteTopic}
+                onTest={onTestTopic}
+                isFormActive={isTopicFormActive}
+                testStates={testStates}
+                testErrors={testErrors}
+                onShowError={onShowSubEntityError}
+                editingItemId={editingTopicId}
+                renderEditForm={(itemId) => {
+                  const topic = topicsList.find((t) => t.id === itemId)
+                  if (!topic) return null
+                  const chatId = (channel.credentials as TelegramCredentials).chatId
+                  // Strip -100 prefix for share link reconstruction (parser expects raw numeric chat ID)
+                  const rawChatId = chatId?.startsWith("-100") ? chatId.slice(4) : chatId
+                  const initialShareLink = rawChatId
+                    ? `https://t.me/c/${rawChatId}/${topic.topicId}`
+                    : ""
+                  return (
+                    <TopicEditForm
+                      channelId={channel.id}
+                      topicConfigId={itemId}
+                      currentName={topic.name}
+                      initialShareLink={initialShareLink}
+                      onSave={onTopicSave}
+                      onCancel={onEditTopicCancel}
+                      onTopicId1Blocked={onTopicId1Blocked}
+                      isActive={true}
+                    />
+                  )
+                }}
+              />
+              {/* TopicAddForm inline */}
+              {isTopicFormActive && (
+                <TopicAddForm
                   channelId={channel.id}
-                  topicConfigId={itemId}
-                  currentName={topic.name}
-                  initialShareLink={initialShareLink}
-                  onSave={onTopicSave}
-                  onCancel={onEditTopicCancel}
+                  onAdd={onTopicAdd}
+                  onCancel={() => setActiveFormId(null)}
+                  onToast={onToast}
                   onTopicId1Blocked={onTopicId1Blocked}
                   isActive={true}
                 />
-              )
-            }}
-          />
-          {/* TopicAddForm inline */}
-          {isTopicFormActive && (
-            <TopicAddForm
-              channelId={channel.id}
-              onAdd={onTopicAdd}
-              onCancel={() => setActiveFormId(null)}
-              onToast={onToast}
-              onTopicId1Blocked={onTopicId1Blocked}
-              isActive={true}
-            />
-          )}
-        </>
-      ) : (
-        <>
-          <SubEntityList
-            platform="discord"
-            items={subEntities.items}
-            channelId={channel.id}
-            addButtonText="+ Add Thread"
-            onAdd={onAddThread}
-            onEdit={onEditThread}
-            onDelete={onDeleteThread}
-            onTest={onTestThread}
-            isFormActive={isThreadFormActive}
-            testStates={testStates}
-            testErrors={testErrors}
-            onShowError={onShowSubEntityError}
-            editingItemId={editingThreadId}
-            renderEditForm={(itemId) => {
-              const thread = threadsList.find((t) => t.id === itemId)
-              if (!thread) return null
-              return (
-                <ThreadEditForm
+              )}
+            </>
+          ) : (
+            <>
+              <SubEntityList
+                platform="discord"
+                items={subEntities.items}
+                channelId={channel.id}
+                addButtonText="+ Add Thread"
+                onAdd={onAddThread}
+                onEdit={onEditThread}
+                onDelete={onDeleteThread}
+                onTest={onTestThread}
+                isFormActive={isThreadFormActive}
+                testStates={testStates}
+                testErrors={testErrors}
+                onShowError={onShowSubEntityError}
+                editingItemId={editingThreadId}
+                renderEditForm={(itemId) => {
+                  const thread = threadsList.find((t) => t.id === itemId)
+                  if (!thread) return null
+                  return (
+                    <ThreadEditForm
+                      channelId={channel.id}
+                      threadConfigId={itemId}
+                      currentName={thread.name}
+                      currentThreadId={thread.threadId}
+                      onSave={onThreadSave}
+                      onCancel={onEditThreadCancel}
+                      isActive={true}
+                    />
+                  )
+                }}
+              />
+              {/* ThreadAddForm inline */}
+              {isThreadFormActive && (
+                <ThreadAddForm
                   channelId={channel.id}
-                  threadConfigId={itemId}
-                  currentName={thread.name}
-                  currentThreadId={thread.threadId}
-                  onSave={onThreadSave}
-                  onCancel={onEditThreadCancel}
+                  onAdd={onThreadAdd}
+                  onCancel={() => setActiveFormId(null)}
                   isActive={true}
                 />
-              )
-            }}
-          />
-          {/* ThreadAddForm inline */}
-          {isThreadFormActive && (
-            <ThreadAddForm
-              channelId={channel.id}
-              onAdd={onThreadAdd}
-              onCancel={() => setActiveFormId(null)}
-              isActive={true}
-            />
+              )}
+            </>
           )}
-        </>
-      )}
 
-      {/* Button Row: [Test Connectivity] + [Remove Channel] */}
-      <div style={styles.buttonRow}>
-        <button
-          style={
-            testState === "loading"
-              ? styles.testButtonLoading
-              : testState === "success"
-                ? styles.testButtonSuccess
-                : testState === "error"
-                  ? styles.testButtonError
-                  : styles.testButton
-          }
-          onClick={() => {
-            if (testState === "error") {
-              onShowTestError?.(channel.id)
-            } else {
-              onTestConnectivity(channel.id)
-            }
-          }}
-          disabled={testState === "loading" || testState === "success"}
-          onMouseEnter={(e) => {
-            if (testState === "idle") {
-              (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (testState === "idle") {
-              (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
-            }
-          }}
-        >
-          {testState === "loading"
-            ? "Testing..."
-            : testState === "success"
-              ? "✓ Connected"
-              : testState === "error"
-                ? "✗ Failed"
-                : "Test Connectivity"}
-        </button>
-        <button
-          style={styles.removeButton}
-          onClick={() => onRemoveChannel(channel.id, hasSubEntities)}
-          onMouseEnter={(e) => {
-            (e.target as HTMLButtonElement).style.color = "#ef4444"
-            ;(e.target as HTMLButtonElement).style.borderColor = "#ef4444"
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLButtonElement).style.color = "#9ca3af"
-            ;(e.target as HTMLButtonElement).style.borderColor = "#3a3f4a"
-          }}
-        >
-          Remove Channel
-        </button>
+          {/* Button Row: [Test Connectivity] + [Remove Channel] */}
+          <div style={styles.buttonRow}>
+            <button
+              style={
+                testState === "loading"
+                  ? styles.testButtonLoading
+                  : testState === "success"
+                    ? styles.testButtonSuccess
+                    : testState === "error"
+                      ? styles.testButtonError
+                      : styles.testButton
+              }
+              onClick={() => {
+                if (testState === "error") {
+                  onShowTestError?.(channel.id)
+                } else {
+                  onTestConnectivity(channel.id)
+                }
+              }}
+              disabled={testState === "loading" || testState === "success"}
+              onMouseEnter={(e) => {
+                if (testState === "idle") {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "rgba(13, 148, 136, 0.15)"
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (testState === "idle") {
+                  (e.target as HTMLButtonElement).style.backgroundColor = "transparent"
+                }
+              }}
+            >
+              {testState === "loading"
+                ? "Testing..."
+                : testState === "success"
+                  ? "✓ Connected"
+                  : testState === "error"
+                    ? "✗ Failed"
+                    : "Test Connectivity"}
+            </button>
+            <button
+              style={styles.removeButton}
+              onClick={() => onRemoveChannel(channel.id, hasSubEntities)}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.color = "#ef4444"
+                ;(e.target as HTMLButtonElement).style.borderColor = "#ef4444"
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.color = "#9ca3af"
+                ;(e.target as HTMLButtonElement).style.borderColor = "#3a3f4a"
+              }}
+            >
+              Remove Channel
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
