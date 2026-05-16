@@ -704,6 +704,99 @@ export async function getTopicsForChannel(
   return [...creds.topics].sort((a, b) => a.order - b.order)
 }
 
+/**
+ * Update a topic in a Telegram channel.
+ * Only name and topicId can change. Internal id and order are preserved.
+ * Blocks topic ID "1" (always resolves to General).
+ * Throws if channel not found, channel is not Telegram, or topic not found.
+ */
+export async function updateTopicInChannel(
+  channelId: number,
+  topicConfigId: number,
+  updates: { name?: string; topicId?: string }
+): Promise<void> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "telegram") {
+    throw new Error(
+      `Cannot update topics in non-Telegram channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as TelegramCredentials
+  const topic = creds.topics.find((t) => t.id === topicConfigId)
+
+  if (!topic) {
+    throw new Error(
+      `Topic with config id ${topicConfigId} not found in channel ${channelId}`
+    )
+  }
+
+  if (updates.name !== undefined) {
+    topic.name = updates.name.trim()
+  }
+
+  if (updates.topicId !== undefined) {
+    const trimmedTopicId = updates.topicId.trim()
+    if (trimmedTopicId === "1") {
+      throw new Error(
+        `Cannot use topic ID "1" — it always resolves to the General topic. Use the main channel to send to General.`
+      )
+    }
+    topic.topicId = trimmedTopicId
+  }
+
+  await saveChannelStorage(storage)
+}
+
+/**
+ * Update a thread in a Discord channel.
+ * Only name and threadId can change. Internal id and order are preserved.
+ * Throws if channel not found, channel is not Discord, or thread not found.
+ */
+export async function updateThreadInChannel(
+  channelId: number,
+  threadConfigId: number,
+  updates: { name?: string; threadId?: string }
+): Promise<void> {
+  const storage = await loadChannelStorage()
+  const channel = storage.channels.find((ch) => ch.id === channelId)
+
+  if (!channel) {
+    throw new Error(`Channel with id ${channelId} not found`)
+  }
+
+  if (channel.type !== "discord") {
+    throw new Error(
+      `Cannot update threads in non-Discord channel (type: ${channel.type})`
+    )
+  }
+
+  const creds = channel.credentials as DiscordCredentials
+  const thread = creds.threads.find((t) => t.id === threadConfigId)
+
+  if (!thread) {
+    throw new Error(
+      `Thread with config id ${threadConfigId} not found in channel ${channelId}`
+    )
+  }
+
+  if (updates.name !== undefined) {
+    thread.name = updates.name.trim()
+  }
+
+  if (updates.threadId !== undefined) {
+    thread.threadId = updates.threadId.trim()
+  }
+
+  await saveChannelStorage(storage)
+}
+
 // ---------------------------------------------------------------------------
 // Send UI Functions
 // ---------------------------------------------------------------------------

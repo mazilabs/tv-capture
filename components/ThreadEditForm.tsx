@@ -1,26 +1,36 @@
 /**
- * TV Capture — Thread Add Form Component
+ * TV Capture — Thread Edit Form Component
  *
- * Inline form for adding a thread to a Discord channel.
- * Simple form with Name + Thread ID fields.
- * Thread ID is a Discord Snowflake obtained via Developer Mode.
+ * Inline form for editing an existing Discord thread.
+ * Pre-filled with current values.
  */
 
 import { useState } from "react"
 
-type ThreadAddFormProps = {
+type ThreadEditFormProps = {
   channelId: number
-  onAdd: (channelId: number, name: string, threadId: string) => Promise<void>
+  threadConfigId: number
+  currentName: string
+  currentThreadId: string
+  onSave: (
+    channelId: number,
+    threadConfigId: number,
+    name: string,
+    threadId: string
+  ) => Promise<void>
   onCancel: () => void
 }
 
-export function ThreadAddForm({
+export function ThreadEditForm({
   channelId,
-  onAdd,
+  threadConfigId,
+  currentName,
+  currentThreadId,
+  onSave,
   onCancel,
-}: ThreadAddFormProps) {
-  const [threadName, setThreadName] = useState("")
-  const [threadId, setThreadId] = useState("")
+}: ThreadEditFormProps) {
+  const [name, setName] = useState(currentName)
+  const [threadId, setThreadId] = useState(currentThreadId)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -54,22 +64,12 @@ export function ThreadAddForm({
       color: "#e5e7eb",
       transition: "border-color 150ms",
     },
-    infoBox: {
-      backgroundColor: "rgba(59, 130, 246, 0.08)",
-      border: "1px solid rgba(59, 130, 246, 0.2)",
-      borderRadius: 6,
-      padding: "6px 8px",
-      marginBottom: 8,
-      fontSize: 11,
-      color: "#9ca3af",
-      lineHeight: 1.4,
-    },
     buttonRow: {
       display: "flex",
       gap: 6,
       marginTop: 8,
     },
-    addButton: {
+    saveButton: {
       flex: 1,
       padding: "8px 12px",
       border: "none",
@@ -81,7 +81,7 @@ export function ThreadAddForm({
       color: "#fff",
       transition: "background-color 150ms",
     },
-    addButtonDisabled: {
+    saveButtonDisabled: {
       flex: 1,
       padding: "8px 12px",
       border: "none",
@@ -111,17 +111,19 @@ export function ThreadAddForm({
   }
 
   const handleSubmit = async () => {
-    if (!threadName.trim() || !threadId.trim()) return
+    if (!name.trim() || !threadId.trim()) return
 
     setError(null)
     setLoading(true)
     try {
-      await onAdd(channelId, threadName.trim(), threadId.trim())
+      await onSave(channelId, threadConfigId, name.trim(), threadId.trim())
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add thread")
+      setError(err instanceof Error ? err.message : "Failed to update thread")
       setLoading(false)
     }
   }
+
+  const isValid = name.trim().length > 0 && threadId.trim().length > 0
 
   return (
     <div style={styles.form}>
@@ -129,14 +131,13 @@ export function ThreadAddForm({
         <label style={styles.label}>Thread Name</label>
         <input
           style={styles.input}
-          placeholder="e.g. AAPL Earnings"
-          value={threadName}
-          onChange={(e) => setThreadName(e.target.value)}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           onFocus={(e) => {
-            (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+            ;(e.target as HTMLInputElement).style.borderColor = "#0d9488"
           }}
           onBlur={(e) => {
-            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+            ;(e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
           }}
           disabled={loading}
         />
@@ -146,43 +147,25 @@ export function ThreadAddForm({
         <label style={styles.label}>Thread ID</label>
         <input
           style={styles.input}
-          placeholder="e.g. 1504005327639543898"
           value={threadId}
           onChange={(e) => setThreadId(e.target.value)}
           onFocus={(e) => {
-            (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+            ;(e.target as HTMLInputElement).style.borderColor = "#0d9488"
           }}
           onBlur={(e) => {
-            (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+            ;(e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
           }}
           disabled={loading}
         />
       </div>
 
-      {/* Blue info box at the bottom */}
-      <div style={styles.infoBox}>
-        <strong>How to get a Thread ID:</strong>
-        <ol style={{ margin: "4px 0 0", paddingLeft: 16 }}>
-          <li>Enable Developer Mode in Discord (Settings → Advanced)</li>
-          <li>Right-click a thread name</li>
-          <li>Click "Copy ID"</li>
-        </ol>
-        <p style={{ margin: "4px 0 0" }}>
-          The ID looks like: <code>1504005327639543898</code>
-        </p>
-      </div>
-
       <div style={styles.buttonRow}>
         <button
-          style={
-            threadName.trim() && threadId.trim() && !loading
-              ? styles.addButton
-              : styles.addButtonDisabled
-          }
-          disabled={!threadName.trim() || !threadId.trim() || loading}
+          style={isValid && !loading ? styles.saveButton : styles.saveButtonDisabled}
+          disabled={!isValid || loading}
           onClick={handleSubmit}
         >
-          {loading ? "Adding..." : "Add Thread"}
+          {loading ? "Saving..." : "Save Changes"}
         </button>
         <button
           style={styles.cancelButton}

@@ -55,8 +55,10 @@ import {
   deleteChannel,
   addTopicToChannel,
   removeTopicFromChannel,
+  updateTopicInChannel,
   addThreadToChannel,
   removeThreadFromChannel,
+  updateThreadInChannel,
   getChannelsSortedBySendOrder,
   updateChannelSendOrder,
   updateSubEntityOrder,
@@ -973,6 +975,18 @@ function SettingsView({
     subEntityCount: number
   } | null>(null)
 
+  // Sub-entity delete confirmation state
+  const [subEntityDeleteConfirm, setSubEntityDeleteConfirm] = useState<{
+    channelId: number
+    subEntityId: number
+    subEntityName: string
+    type: "topic" | "thread"
+  } | null>(null)
+
+  // Edit state for sub-entities
+  const [editingTopicId, setEditingTopicId] = useState<number | null>(null)
+  const [editingThreadId, setEditingThreadId] = useState<number | null>(null)
+
   // Toast state
   const [toast, setToast] = useState<string | null>(null)
 
@@ -1194,6 +1208,9 @@ function SettingsView({
   // Add topic
   const handleAddTopic = (channelId: number) => {
     setActiveFormId(`topic-${channelId}`)
+    // Close any open edit forms
+    setEditingTopicId(null)
+    setEditingThreadId(null)
   }
 
   // Add topic — submit (called from TopicAddForm)
@@ -1207,13 +1224,41 @@ function SettingsView({
     setActiveFormId(null)
   }
 
-  // Remove topic — immediate, no confirmation
-  const handleRemoveTopic = async (
+  // Edit topic
+  const handleEditTopic = (channelId: number, topicConfigId: number) => {
+    setEditingTopicId(topicConfigId)
+    setEditingThreadId(null)
+  }
+
+  // Cancel topic edit
+  const handleEditTopicCancel = () => {
+    setEditingTopicId(null)
+  }
+
+  // Delete topic — show confirmation
+  const handleDeleteTopic = (
     channelId: number,
-    topicConfigId: number
+    topicConfigId: number,
+    topicName: string
   ) => {
-    await removeTopicFromChannel(channelId, topicConfigId)
+    setSubEntityDeleteConfirm({
+      channelId,
+      subEntityId: topicConfigId,
+      subEntityName: topicName,
+      type: "topic",
+    })
+  }
+
+  // Save topic edit
+  const handleTopicSave = async (
+    channelId: number,
+    topicConfigId: number,
+    name: string,
+    topicId: string
+  ) => {
+    await updateTopicInChannel(channelId, topicConfigId, { name, topicId })
     await refreshChannels()
+    setEditingTopicId(null)
   }
 
   // Test topic — sends test message to specific Telegram topic
@@ -1267,6 +1312,9 @@ function SettingsView({
   // Add thread
   const handleAddThread = (channelId: number) => {
     setActiveFormId(`thread-${channelId}`)
+    // Close any open edit forms
+    setEditingTopicId(null)
+    setEditingThreadId(null)
   }
 
   // Add thread — submit (called from ThreadAddForm)
@@ -1280,13 +1328,54 @@ function SettingsView({
     setActiveFormId(null)
   }
 
-  // Remove thread — immediate, no confirmation
-  const handleRemoveThread = async (
+  // Edit thread
+  const handleEditThread = (channelId: number, threadConfigId: number) => {
+    setEditingThreadId(threadConfigId)
+    setEditingTopicId(null)
+  }
+
+  // Cancel thread edit
+  const handleEditThreadCancel = () => {
+    setEditingThreadId(null)
+  }
+
+  // Delete thread — show confirmation
+  const handleDeleteThread = (
     channelId: number,
-    threadConfigId: number
+    threadConfigId: number,
+    threadName: string
   ) => {
-    await removeThreadFromChannel(channelId, threadConfigId)
+    setSubEntityDeleteConfirm({
+      channelId,
+      subEntityId: threadConfigId,
+      subEntityName: threadName,
+      type: "thread",
+    })
+  }
+
+  // Save thread edit
+  const handleThreadSave = async (
+    channelId: number,
+    threadConfigId: number,
+    name: string,
+    threadId: string
+  ) => {
+    await updateThreadInChannel(channelId, threadConfigId, { name, threadId })
     await refreshChannels()
+    setEditingThreadId(null)
+  }
+
+  // Confirm sub-entity delete
+  const handleConfirmSubEntityDelete = async () => {
+    if (!subEntityDeleteConfirm) return
+    const { channelId, subEntityId, type } = subEntityDeleteConfirm
+    if (type === "topic") {
+      await removeTopicFromChannel(channelId, subEntityId)
+    } else {
+      await removeThreadFromChannel(channelId, subEntityId)
+    }
+    await refreshChannels()
+    setSubEntityDeleteConfirm(null)
   }
 
   // Test thread — sends test message to specific Discord thread
@@ -1449,14 +1538,20 @@ function SettingsView({
             onTestConnectivity={handleTestConnectivity}
             onRemoveChannel={handleRemoveChannel}
             onAddTopic={handleAddTopic}
-            onRemoveTopic={handleRemoveTopic}
+            onEditTopic={handleEditTopic}
+            onDeleteTopic={handleDeleteTopic}
             onTestTopic={handleTestTopic}
             onAddThread={() => {}}
-            onRemoveThread={() => {}}
+            onEditThread={() => {}}
+            onDeleteThread={() => {}}
             onTestThread={() => {}}
             onUpdateChannel={handleUpdateChannel}
             onTopicAdd={handleTopicAdd}
             onThreadAdd={handleThreadAdd}
+            onTopicSave={handleTopicSave}
+            onThreadSave={handleThreadSave}
+            onEditTopicCancel={handleEditTopicCancel}
+            onEditThreadCancel={handleEditThreadCancel}
             onToast={setToast}
             onTopicId1Blocked={() => {
               setTopicId1Modal(true)
@@ -1465,6 +1560,8 @@ function SettingsView({
             onRefresh={refreshChannels}
             activeFormId={activeFormId}
             setActiveFormId={setActiveFormId}
+            editingTopicId={editingTopicId}
+            editingThreadId={editingThreadId}
             onShowTestError={handleShowTestError}
             onShowSubEntityError={(chId, itemId) => handleShowSubEntityError(chId, itemId, "telegram")}
             isActive={activeCardId === channel.id}
@@ -1585,14 +1682,20 @@ function SettingsView({
             onTestConnectivity={handleTestConnectivity}
             onRemoveChannel={handleRemoveChannel}
             onAddTopic={() => {}}
-            onRemoveTopic={() => {}}
+            onEditTopic={() => {}}
+            onDeleteTopic={() => {}}
             onTestTopic={() => {}}
             onAddThread={handleAddThread}
-            onRemoveThread={handleRemoveThread}
+            onEditThread={handleEditThread}
+            onDeleteThread={handleDeleteThread}
             onTestThread={handleTestThread}
             onUpdateChannel={handleUpdateChannel}
             onTopicAdd={handleTopicAdd}
             onThreadAdd={handleThreadAdd}
+            onTopicSave={handleTopicSave}
+            onThreadSave={handleThreadSave}
+            onEditTopicCancel={handleEditTopicCancel}
+            onEditThreadCancel={handleEditThreadCancel}
             onToast={setToast}
             onTopicId1Blocked={() => {
               setTopicId1Modal(true)
@@ -1601,6 +1704,8 @@ function SettingsView({
             onRefresh={refreshChannels}
             activeFormId={activeFormId}
             setActiveFormId={setActiveFormId}
+            editingTopicId={editingTopicId}
+            editingThreadId={editingThreadId}
             onShowTestError={handleShowTestError}
             onShowSubEntityError={(chId, itemId) => handleShowSubEntityError(chId, itemId, "discord")}
             isActive={activeCardId === channel.id}
@@ -1817,6 +1922,18 @@ function SettingsView({
           cancelLabel="Cancel"
           onConfirm={() => handleDeleteChannel(deleteConfirm.channelId)}
           onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog for Sub-Entities */}
+      {subEntityDeleteConfirm && (
+        <ConfirmDialog
+          title={`Delete ${subEntityDeleteConfirm.type === "topic" ? "Topic" : "Thread"}?`}
+          message={`Are you sure you want to delete "${subEntityDeleteConfirm.subEntityName}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={handleConfirmSubEntityDelete}
+          onCancel={() => setSubEntityDeleteConfirm(null)}
         />
       )}
 

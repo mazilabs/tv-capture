@@ -1,9 +1,9 @@
 /**
  * TV Capture — Topic Add Form Component
  *
- * Inline form for adding a topic to a Telegram channel via Share Link paste.
- * Three states: shareLink (initial), parsed (after successful parse), manual (fallback).
- * Handles Chat ID auto-correction and Topic ID 1 blocking via parent callbacks.
+ * Inline form for adding a topic to a Telegram channel.
+ * Simplified UX: Topic Name + Telegram Share Link only.
+ * Topic ID is extracted automatically from the Share Link.
  */
 
 import { useState } from "react"
@@ -18,8 +18,6 @@ type TopicAddFormProps = {
   onTopicId1Blocked: () => void
 }
 
-type FormMode = "shareLink" | "parsed" | "manual" | "loading"
-
 export function TopicAddForm({
   channelId,
   onAdd,
@@ -27,13 +25,11 @@ export function TopicAddForm({
   onToast,
   onTopicId1Blocked,
 }: TopicAddFormProps) {
-  const [mode, setMode] = useState<FormMode>("shareLink")
-  const [link, setLink] = useState("")
   const [topicName, setTopicName] = useState("")
-  const [manualTopicId, setManualTopicId] = useState("")
-  const [parsedChatId, setParsedChatId] = useState("")
-  const [parsedTopicId, setParsedTopicId] = useState("")
+  const [link, setLink] = useState("")
+  const [parsedTopicId, setParsedTopicId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const styles: Record<string, React.CSSProperties> = {
     form: {
@@ -78,15 +74,6 @@ export function TopicAddForm({
       color: "#e5e7eb",
       fontFamily: "monospace",
       fontSize: 12,
-    },
-    infoLink: {
-      fontSize: 11,
-      color: "#6b7280",
-      cursor: "pointer",
-      textDecoration: "underline",
-      textDecorationColor: "#4b5563",
-      marginLeft: 4,
-      transition: "color 150ms",
     },
     error: {
       fontSize: 12,
@@ -145,16 +132,23 @@ export function TopicAddForm({
   }
 
   const handleParseLink = async () => {
+    if (!link.trim()) {
+      setParsedTopicId(null)
+      return
+    }
     setError(null)
-    const parsed = parseTelegramShareLink(link)
+
+    const parsed = parseTelegramShareLink(link.trim())
     if (!parsed) {
       setError("Invalid Share Link format. Expected: https://t.me/c/.../...")
+      setParsedTopicId(null)
       return
     }
 
     // Check Topic ID 1 blocking
     if (parsed.topicId === "1") {
       onTopicId1Blocked()
+      setParsedTopicId(null)
       return
     }
 
@@ -168,208 +162,111 @@ export function TopicAddForm({
       // Non-critical — continue even if correction fails
     }
 
-    setParsedChatId(parsed.chatId)
     setParsedTopicId(parsed.topicId)
-    setMode("parsed")
   }
 
-  const handleManualSubmit = async () => {
-    if (!topicName.trim() || !manualTopicId.trim()) return
-
-    if (manualTopicId.trim() === "1") {
-      onTopicId1Blocked()
-      return
-    }
+  const handleSubmit = async () => {
+    if (!topicName.trim() || !parsedTopicId) return
 
     setError(null)
-    setMode("loading")
-    try {
-      await onAdd(channelId, topicName.trim(), manualTopicId.trim())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add topic")
-      setMode("manual")
-    }
-  }
-
-  const handleParsedSubmit = async () => {
-    if (!topicName.trim()) return
-
-    setError(null)
-    setMode("loading")
+    setLoading(true)
     try {
       await onAdd(channelId, topicName.trim(), parsedTopicId)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add topic")
-      setMode("parsed")
+      setLoading(false)
     }
   }
 
+  const isValid = topicName.trim().length > 0 && parsedTopicId !== null
+
   return (
     <div style={styles.form}>
-      {/* Initial / Share Link state */}
-      {(mode === "shareLink" || mode === "parsed") && (
-        <div style={styles.field}>
-          <label style={styles.label}>Telegram Link</label>
-            <input
-              style={styles.input}
-              placeholder="https://t.me/c/3719682271/2"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              onBlur={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-                handleParseLink()
-              }}
-              onFocus={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-              }}
-              disabled={mode === "parsed"}
-            />
-          {/* Info box for Share Link */}
-          {mode === "shareLink" && (
-            <div style={styles.infoBox}>
-              <strong>How to get a Topic Link:</strong>
-              <ol style={{ margin: "4px 0 0", paddingLeft: 16 }}>
-                <li>Open the desired topic in Telegram</li>
-                <li>Tap the topic name at the top of the chat</li>
-                <li>Tap "Copy Message Link" / "Link teilen"</li>
-              </ol>
-              <p style={{ margin: "4px 0 0" }}>
-                The link looks like: <code>https://t.me/c/3719682271/2</code>
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Topic Name field */}
+      <div style={styles.field}>
+        <label style={styles.label}>Topic Name</label>
+        <input
+          style={styles.input}
+          placeholder="e.g. Gold Analysis"
+          value={topicName}
+          onChange={(e) => setTopicName(e.target.value)}
+          onFocus={(e) => {
+            ;(e.target as HTMLInputElement).style.borderColor = "#0d9488"
+          }}
+          onBlur={(e) => {
+            ;(e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+          }}
+          disabled={loading}
+        />
+      </div>
+
+      {/* Share Link field */}
+      <div style={styles.field}>
+        <label style={styles.label}>Share Link</label>
+        <input
+          style={styles.input}
+          placeholder="https://t.me/c/3719682271/2"
+          value={link}
+          onChange={(e) => {
+            setLink(e.target.value)
+            // Clear parsed result when user types
+            if (!e.target.value.trim()) {
+              setParsedTopicId(null)
+            }
+          }}
+          onBlur={(e) => {
+            ;(e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+            handleParseLink()
+          }}
+          onFocus={(e) => {
+            ;(e.target as HTMLInputElement).style.borderColor = "#0d9488"
+          }}
+          disabled={loading}
+        />
+      </div>
 
       {/* Parsed result display */}
-      {mode === "parsed" && (
-        <>
-          <div style={styles.parsedResult}>
-            <div>Chat ID: <span style={styles.parsedValue}>{parsedChatId}</span></div>
-            <div>Topic ID: <span style={styles.parsedValue}>{parsedTopicId}</span></div>
-            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-              ✅ Topic IDs are permanent — they don't change as long as the topic exists.
-            </div>
+      {parsedTopicId && (
+        <div style={styles.parsedResult}>
+          <div>
+            Parsed Topic ID: <span style={styles.parsedValue}>{parsedTopicId}</span>
           </div>
-
-          {/* Name input for parsed mode */}
-          <div style={styles.field}>
-            <label style={styles.label}>Topic Name</label>
-            <input
-              style={styles.input}
-              placeholder="e.g. Gold Analysis"
-              value={topicName}
-              onChange={(e) => setTopicName(e.target.value)}
-              onFocus={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-              }}
-              onBlur={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-              }}
-            />
+          <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+            ✅ Topic IDs are permanent — they don't change as long as the topic exists.
           </div>
-
-          <div style={styles.buttonRow}>
-            <button
-              style={topicName.trim() ? styles.addButton : styles.addButtonDisabled}
-              disabled={!topicName.trim()}
-              onClick={handleParsedSubmit}
-            >
-              Add Topic
-            </button>
-            <button
-              style={styles.cancelButton}
-              onClick={onCancel}
-            >
-              Cancel
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* Share Link mode: manual fallback link */}
-      {mode === "shareLink" && (
-        <span
-          style={styles.infoLink}
-          onClick={() => {
-            setMode("manual")
-            setError(null)
-          }}
-          onMouseEnter={(e) => {
-            (e.target as HTMLElement).style.color = "#9ca3af"
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLElement).style.color = "#6b7280"
-          }}
-        >
-          Enter manually
-        </span>
-      )}
-
-      {/* Manual mode */}
-      {mode === "manual" && (
-        <>
-          <div style={styles.field}>
-            <label style={styles.label}>Topic ID</label>
-            <input
-              style={styles.input}
-              placeholder="e.g. 17"
-              value={manualTopicId}
-              onChange={(e) => setManualTopicId(e.target.value)}
-              onFocus={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-              }}
-              onBlur={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-              }}
-            />
-          </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Topic Name</label>
-            <input
-              style={styles.input}
-              placeholder="e.g. Gold Analysis"
-              value={topicName}
-              onChange={(e) => setTopicName(e.target.value)}
-              onFocus={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#0d9488"
-              }}
-              onBlur={(e) => {
-                (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-              }}
-            />
-          </div>
-
-          <div style={styles.buttonRow}>
-            <button
-              style={
-                topicName.trim() && manualTopicId.trim()
-                  ? styles.addButton
-                  : styles.addButtonDisabled
-              }
-              disabled={!topicName.trim() || !manualTopicId.trim()}
-              onClick={handleManualSubmit}
-            >
-              Add Topic
-            </button>
-            <button
-              style={styles.cancelButton}
-              onClick={onCancel}
-            >
-              Cancel
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* Loading state */}
-      {mode === "loading" && (
-        <div style={{ fontSize: 12, color: "#6b7280", textAlign: "center", padding: "8px 0" }}>
-          Adding...
         </div>
       )}
 
-      {/* Error display */}
+      {/* Blue info box at the bottom */}
+      <div style={styles.infoBox}>
+        <strong>How to get a Topic Share Link:</strong>
+        <ol style={{ margin: "4px 0 0", paddingLeft: 16 }}>
+          <li>Open the desired topic in Telegram</li>
+          <li>Tap the topic name at the top of the chat</li>
+          <li>Tap "Copy Message Link" / "Link teilen"</li>
+        </ol>
+        <p style={{ margin: "4px 0 0" }}>
+          The link looks like: <code>https://t.me/c/3719682271/2</code>
+        </p>
+      </div>
+
+      <div style={styles.buttonRow}>
+        <button
+          style={isValid && !loading ? styles.addButton : styles.addButtonDisabled}
+          disabled={!isValid || loading}
+          onClick={handleSubmit}
+        >
+          {loading ? "Adding..." : "Add Topic"}
+        </button>
+        <button
+          style={styles.cancelButton}
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancel
+        </button>
+      </div>
+
       {error && <p style={styles.error}>{error}</p>}
     </div>
   )

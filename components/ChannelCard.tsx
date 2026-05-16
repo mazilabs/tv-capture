@@ -20,6 +20,8 @@ import { CHANNEL_PREFIX } from "../lib-channels"
 import { SubEntityList } from "./SubEntityList"
 import { TopicAddForm } from "./TopicAddForm"
 import { ThreadAddForm } from "./ThreadAddForm"
+import { TopicEditForm } from "./TopicEditForm"
+import { ThreadEditForm } from "./ThreadEditForm"
 
 type ChannelCardProps = {
   channel: Channel
@@ -28,19 +30,27 @@ type ChannelCardProps = {
   onTestConnectivity: (channelId: number) => void
   onRemoveChannel: (channelId: number, hasSubEntities: boolean) => void
   onAddTopic: (channelId: number) => void
-  onRemoveTopic: (channelId: number, topicConfigId: number) => void
+  onEditTopic: (channelId: number, topicConfigId: number) => void
+  onDeleteTopic: (channelId: number, topicConfigId: number, topicName: string) => void
   onTestTopic: (channelId: number, topicConfigId: number) => void
   onAddThread: (channelId: number) => void
-  onRemoveThread: (channelId: number, threadConfigId: number) => void
+  onEditThread: (channelId: number, threadConfigId: number) => void
+  onDeleteThread: (channelId: number, threadConfigId: number, threadName: string) => void
   onTestThread: (channelId: number, threadConfigId: number) => void
   onUpdateChannel: (channelId: number, updates: ChannelUpdate) => void
   onTopicAdd: (channelId: number, name: string, topicId: string) => Promise<void>
   onThreadAdd: (channelId: number, name: string, threadId: string) => Promise<void>
+  onTopicSave: (channelId: number, topicConfigId: number, name: string, topicId: string) => Promise<void>
+  onThreadSave: (channelId: number, threadConfigId: number, name: string, threadId: string) => Promise<void>
+  onEditTopicCancel: () => void
+  onEditThreadCancel: () => void
   onToast: (message: string) => void
   onTopicId1Blocked: () => void
   onRefresh: () => Promise<void>
   activeFormId: string | null
   setActiveFormId: (id: string | null) => void
+  editingTopicId: number | null
+  editingThreadId: number | null
   onShowTestError?: (channelId: number) => void
   onShowSubEntityError?: (channelId: number, itemId: number) => void
   isActive?: boolean
@@ -55,19 +65,27 @@ export function ChannelCard({
   onTestConnectivity,
   onRemoveChannel,
   onAddTopic,
-  onRemoveTopic,
+  onEditTopic,
+  onDeleteTopic,
   onTestTopic,
   onAddThread,
-  onRemoveThread,
+  onEditThread,
+  onDeleteThread,
   onTestThread,
   onUpdateChannel,
   onTopicAdd,
   onThreadAdd,
+  onTopicSave,
+  onThreadSave,
+  onEditTopicCancel,
+  onEditThreadCancel,
   onToast,
   onTopicId1Blocked,
   onRefresh,
   activeFormId,
   setActiveFormId,
+  editingTopicId,
+  editingThreadId,
   onShowTestError,
   onShowSubEntityError,
   isActive,
@@ -415,12 +433,33 @@ export function ChannelCard({
             channelId={channel.id}
             addButtonText="+ Add Topic"
             onAdd={onAddTopic}
-            onRemove={onRemoveTopic}
+            onEdit={onEditTopic}
+            onDelete={onDeleteTopic}
             onTest={onTestTopic}
             isFormActive={isTopicFormActive}
             testStates={testStates}
             testErrors={testErrors}
             onShowError={onShowSubEntityError}
+            editingItemId={editingTopicId}
+            renderEditForm={(itemId) => {
+              const topic = topicsList.find((t) => t.id === itemId)
+              if (!topic) return null
+              const chatId = (channel.credentials as TelegramCredentials).chatId
+              const initialShareLink = chatId
+                ? `https://t.me/c/${chatId}/${topic.topicId}`
+                : ""
+              return (
+                <TopicEditForm
+                  channelId={channel.id}
+                  topicConfigId={itemId}
+                  currentName={topic.name}
+                  initialShareLink={initialShareLink}
+                  onSave={onTopicSave}
+                  onCancel={onEditTopicCancel}
+                  onTopicId1Blocked={onTopicId1Blocked}
+                />
+              )
+            }}
           />
           {/* TopicAddForm inline */}
           {isTopicFormActive && (
@@ -441,12 +480,28 @@ export function ChannelCard({
             channelId={channel.id}
             addButtonText="+ Add Thread"
             onAdd={onAddThread}
-            onRemove={onRemoveThread}
+            onEdit={onEditThread}
+            onDelete={onDeleteThread}
             onTest={onTestThread}
             isFormActive={isThreadFormActive}
             testStates={testStates}
             testErrors={testErrors}
             onShowError={onShowSubEntityError}
+            editingItemId={editingThreadId}
+            renderEditForm={(itemId) => {
+              const thread = threadsList.find((t) => t.id === itemId)
+              if (!thread) return null
+              return (
+                <ThreadEditForm
+                  channelId={channel.id}
+                  threadConfigId={itemId}
+                  currentName={thread.name}
+                  currentThreadId={thread.threadId}
+                  onSave={onThreadSave}
+                  onCancel={onEditThreadCancel}
+                />
+              )
+            }}
           />
           {/* ThreadAddForm inline */}
           {isThreadFormActive && (
