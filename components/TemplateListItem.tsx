@@ -55,8 +55,6 @@ export function TemplateListItem({
       borderRadius: 8,
       marginBottom: 8,
       backgroundColor: "rgba(40, 48, 56, 0.7)",
-      backdropFilter: "blur(12px)",
-      WebkitBackdropFilter: "blur(12px)",
     },
     name: {
       fontSize: 14,
