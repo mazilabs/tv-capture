@@ -22,6 +22,7 @@ type TopicEditFormProps = {
   ) => Promise<void>
   onCancel: () => void
   onTopicId1Blocked: () => void
+  isActive?: boolean
 }
 
 export function TopicEditForm({
@@ -32,6 +33,7 @@ export function TopicEditForm({
   onSave,
   onCancel,
   onTopicId1Blocked,
+  isActive,
 }: TopicEditFormProps) {
   const [name, setName] = useState(currentName)
   const [shareLink, setShareLink] = useState(initialShareLink)
@@ -42,9 +44,9 @@ export function TopicEditForm({
     form: {
       marginTop: 6,
       padding: "8px 10px",
-      backgroundColor: "rgba(37, 40, 48, 0.6)",
+      backgroundColor: isActive ? "rgba(55, 60, 70, 0.5)" : "rgba(37, 40, 48, 0.6)",
       borderRadius: 8,
-      border: "1px solid #3a3f4a",
+      border: isActive ? "1px solid #4b5563" : "1px solid #3a3f4a",
     },
     field: {
       marginBottom: 8,
@@ -111,6 +113,7 @@ export function TopicEditForm({
       fontSize: 12,
       color: "#ef4444",
       marginTop: 4,
+      wordWrap: "break-word",
     },
   }
 

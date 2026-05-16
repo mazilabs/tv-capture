@@ -19,6 +19,7 @@ type ThreadEditFormProps = {
     threadId: string
   ) => Promise<void>
   onCancel: () => void
+  isActive?: boolean
 }
 
 export function ThreadEditForm({
@@ -28,6 +29,7 @@ export function ThreadEditForm({
   currentThreadId,
   onSave,
   onCancel,
+  isActive,
 }: ThreadEditFormProps) {
   const [name, setName] = useState(currentName)
   const [threadId, setThreadId] = useState(currentThreadId)
@@ -38,9 +40,9 @@ export function ThreadEditForm({
     form: {
       marginTop: 6,
       padding: "8px 10px",
-      backgroundColor: "rgba(37, 40, 48, 0.6)",
+      backgroundColor: isActive ? "rgba(55, 60, 70, 0.5)" : "rgba(37, 40, 48, 0.6)",
       borderRadius: 8,
-      border: "1px solid #3a3f4a",
+      border: isActive ? "1px solid #4b5563" : "1px solid #3a3f4a",
     },
     field: {
       marginBottom: 8,
@@ -107,6 +109,7 @@ export function ThreadEditForm({
       fontSize: 12,
       color: "#ef4444",
       marginTop: 4,
+      wordWrap: "break-word",
     },
   }
 

@@ -154,6 +154,10 @@ export function ChannelCard({
   const isTopicFormActive = activeFormId === topicFormId
   const isThreadFormActive = activeFormId === threadFormId
 
+  // Determine if any sub-entity form is open — suppress card active highlight when true
+  const hasOpenForm =
+    isTopicFormActive || isThreadFormActive || editingTopicId !== null || editingThreadId !== null
+
   const styles: Record<string, React.CSSProperties> = {
     card: {
       border: "1px solid #3a3f4a",
@@ -276,8 +280,8 @@ export function ChannelCard({
       data-card-id={channel.id}
       style={{
         ...styles.card,
-        border: isActive ? "1px solid #4b5563" : "1px solid #3a3f4a",
-        backgroundColor: isActive ? "rgba(55, 60, 70, 0.5)" : "rgba(37, 40, 48, 0.5)",
+        border: isActive && !hasOpenForm ? "1px solid #4b5563" : "1px solid #3a3f4a",
+        backgroundColor: isActive && !hasOpenForm ? "rgba(55, 60, 70, 0.5)" : "rgba(37, 40, 48, 0.5)",
       }}
     >
       {/* Card Header: "TG: Name" / "DC: Name" + account/server name on right */}
@@ -445,8 +449,10 @@ export function ChannelCard({
               const topic = topicsList.find((t) => t.id === itemId)
               if (!topic) return null
               const chatId = (channel.credentials as TelegramCredentials).chatId
-              const initialShareLink = chatId
-                ? `https://t.me/c/${chatId}/${topic.topicId}`
+              // Strip -100 prefix for share link reconstruction (parser expects raw numeric chat ID)
+              const rawChatId = chatId?.startsWith("-100") ? chatId.slice(4) : chatId
+              const initialShareLink = rawChatId
+                ? `https://t.me/c/${rawChatId}/${topic.topicId}`
                 : ""
               return (
                 <TopicEditForm
@@ -457,6 +463,7 @@ export function ChannelCard({
                   onSave={onTopicSave}
                   onCancel={onEditTopicCancel}
                   onTopicId1Blocked={onTopicId1Blocked}
+                  isActive={true}
                 />
               )
             }}
@@ -469,6 +476,7 @@ export function ChannelCard({
               onCancel={() => setActiveFormId(null)}
               onToast={onToast}
               onTopicId1Blocked={onTopicId1Blocked}
+              isActive={true}
             />
           )}
         </>
@@ -499,6 +507,7 @@ export function ChannelCard({
                   currentThreadId={thread.threadId}
                   onSave={onThreadSave}
                   onCancel={onEditThreadCancel}
+                  isActive={true}
                 />
               )
             }}
@@ -509,6 +518,7 @@ export function ChannelCard({
               channelId={channel.id}
               onAdd={onThreadAdd}
               onCancel={() => setActiveFormId(null)}
+              isActive={true}
             />
           )}
         </>
