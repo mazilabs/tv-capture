@@ -166,9 +166,13 @@ export function TopicAddForm({
       if (correction.updated) {
         onToast(`Chat ID auto-corrected from ${correction.oldChatId} to ${correction.newChatId}`)
         await onRefresh?.()
+      } else if (correction.skipped) {
+        console.warn("[TopicAddForm] Chat ID mismatch:", correction.reason)
+        onToast(`Warning: Chat ID mismatch (${correction.oldChatId} → ${correction.newChatId}). Update manually in Settings if needed.`)
       }
-    } catch {
-      // Non-critical — continue even if correction fails
+    } catch (err) {
+      console.error("[TopicAddForm] Chat ID auto-correction failed:", err)
+      onToast("Chat ID auto-correction failed — check console for details")
     }
 
     try {

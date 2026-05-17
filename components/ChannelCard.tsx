@@ -422,6 +422,7 @@ export function ChannelCard({
                 <label style={styles.label}>Chat ID</label>
                 <input
                   style={styles.input}
+                  key={`chat-${channel.id}-${(channel.credentials as TelegramCredentials).chatId}`}
                   defaultValue={(channel.credentials as TelegramCredentials).chatId}
                   placeholder="e.g. -1001234567890"
                   onBlur={(e) => {

@@ -1433,14 +1433,20 @@ describe("resolveAndCorrectChatId", () => {
     })
   })
 
-  it("returns updated: true and updates stored Chat ID when different (C2)", async () => {
-    const ch = await createTelegramChannel("Test")
+  it("returns updated: true for normal group → supergroup migration (C2)", async () => {
+    // Create channel with normal group Chat ID (no -100 prefix)
+    const ch = await createChannel("Legacy Group", "telegram", {
+      type: "telegram",
+      botToken: "test-bot",
+      chatId: "-5",
+      topics: [],
+    })
 
     const result = await resolveAndCorrectChatId(ch.id, "-100999")
 
     expect(result).toEqual({
       updated: true,
-      oldChatId: "-100123",
+      oldChatId: "-5",
       newChatId: "-100999",
     })
 
@@ -1470,7 +1476,13 @@ describe("resolveAndCorrectChatId", () => {
   })
 
   it("trims whitespace from parsedChatId (C5)", async () => {
-    const ch = await createTelegramChannel("Test")
+    // Create channel with normal group Chat ID (no -100 prefix)
+    const ch = await createChannel("Legacy Group", "telegram", {
+      type: "telegram",
+      botToken: "test-bot",
+      chatId: "-5",
+      topics: [],
+    })
 
     const result = await resolveAndCorrectChatId(ch.id, "  -100999  ")
 
@@ -1485,7 +1497,13 @@ describe("resolveAndCorrectChatId", () => {
   })
 
   it("persists updated Chat ID after reload (C6)", async () => {
-    const ch = await createTelegramChannel("Test")
+    // Create channel with normal group Chat ID (no -100 prefix)
+    const ch = await createChannel("Legacy Group", "telegram", {
+      type: "telegram",
+      botToken: "test-bot",
+      chatId: "-5",
+      topics: [],
+    })
     await resolveAndCorrectChatId(ch.id, "-100999")
 
     // Reload and verify
@@ -1493,6 +1511,89 @@ describe("resolveAndCorrectChatId", () => {
     const reloaded = storage.channels.find((c) => c.id === ch.id)!
     const creds = reloaded.credentials as TelegramCredentials
     expect(creds.chatId).toBe("-100999")
+  })
+
+  it("migrates legacy group Chat ID to supergroup Chat ID (C7)", async () => {
+    // Simulate legacy group (small negative ID, e.g. -5)
+    const ch = await createChannel("Legacy Group", "telegram", {
+      type: "telegram",
+      botToken: "test-bot",
+      chatId: "-5",
+      topics: [],
+    })
+
+    // Share link from supergroup has -100 prefix
+    const result = await resolveAndCorrectChatId(ch.id, "-1001234567890")
+
+    expect(result).toEqual({
+      updated: true,
+      oldChatId: "-5",
+      newChatId: "-1001234567890",
+    })
+
+    // Verify stored Chat ID was updated
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.chatId).toBe("-1001234567890")
+  })
+
+  it("skips auto-correction for supergroup → supergroup (C8)", async () => {
+    const ch = await createTelegramChannel("Test")
+    // oldChatId is "-100123" (supergroup), newChatId is "-100999" (supergroup)
+
+    const result = await resolveAndCorrectChatId(ch.id, "-100999")
+
+    expect(result.updated).toBe(false)
+    expect(result.skipped).toBe(true)
+    expect(result.reason).toContain("not auto-corrected")
+
+    // Verify stored Chat ID was NOT updated
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.chatId).toBe("-100123")
+  })
+
+  it("skips auto-correction for normal group → normal group (C9)", async () => {
+    const ch = await createChannel("Legacy Group", "telegram", {
+      type: "telegram",
+      botToken: "test-bot",
+      chatId: "-5",
+      topics: [],
+    })
+
+    const result = await resolveAndCorrectChatId(ch.id, "-999")
+
+    expect(result.updated).toBe(false)
+    expect(result.skipped).toBe(true)
+    expect(result.reason).toContain("not auto-corrected")
+
+    // Verify stored Chat ID was NOT updated
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.chatId).toBe("-5")
+  })
+
+  it("skips auto-correction when old is empty and new is supergroup (C10)", async () => {
+    const ch = await createChannel("Empty ChatId", "telegram", {
+      type: "telegram",
+      botToken: "test-bot",
+      chatId: "",
+      topics: [],
+    })
+
+    const result = await resolveAndCorrectChatId(ch.id, "-100999")
+
+    expect(result.updated).toBe(false)
+    expect(result.skipped).toBe(true)
+
+    // Verify stored Chat ID was NOT updated
+    const storage = await loadChannelStorage()
+    const reloaded = storage.channels.find((c) => c.id === ch.id)!
+    const creds = reloaded.credentials as TelegramCredentials
+    expect(creds.chatId).toBe("")
   })
 })
 

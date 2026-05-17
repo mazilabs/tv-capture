@@ -924,11 +924,21 @@ export type ChatIdCorrectionResult = {
   updated: boolean
   oldChatId: string
   newChatId: string
+  skipped?: boolean
+  reason?: string
 }
 
 /**
  * Compare parsed Chat ID (from Share Link) with stored Chat ID.
- * If different, update the stored Chat ID (legacy group → supergroup migration).
+ * Only auto-corrects for unambiguous normal group → supergroup migrations.
+ *
+ * Heuristic:
+ *   - Old Chat ID is a normal group: starts with "-" but NOT "-100"
+ *   - New Chat ID is a supergroup: starts with "-100"
+ *
+ * If the heuristic does not match, the Chat ID is NOT updated (to prevent
+ * accidentally pointing the channel config at a different group).
+ *
  * Must be called BEFORE addTopicToChannel() so the correct chatId is used.
  *
  * @returns Correction result with updated flag and old/new values
@@ -958,9 +968,23 @@ export async function resolveAndCorrectChatId(
     return { updated: false, oldChatId, newChatId }
   }
 
-  // Update stored Chat ID
-  creds.chatId = newChatId
-  await saveChannelStorage(storage)
+  // Safe heuristic: only auto-correct normal group → supergroup migration
+  const isOldNormalGroup = oldChatId.startsWith("-") && !oldChatId.startsWith("-100")
+  const isNewSupergroup = newChatId.startsWith("-100")
 
-  return { updated: true, oldChatId, newChatId }
+  if (isOldNormalGroup && isNewSupergroup) {
+    // Unambiguous migration: normal group → supergroup
+    creds.chatId = newChatId
+    await saveChannelStorage(storage)
+    return { updated: true, oldChatId, newChatId }
+  }
+
+  // Not an unambiguous migration — do NOT auto-correct
+  return {
+    updated: false,
+    oldChatId,
+    newChatId,
+    skipped: true,
+    reason: `Chat ID mismatch detected but not auto-corrected: old=${oldChatId}, new=${newChatId}. Only normal group → supergroup migrations are auto-corrected.`,
+  }
 }
