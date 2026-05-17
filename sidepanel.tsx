@@ -2725,6 +2725,61 @@ function HelpView({
                 </p>
               </div>
             </div>
+
+            {/* INFO: Send Messages to Closed Topics */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>Info: Send Messages to Closed Topics</h2>
+              <p style={{ ...s.helpText, marginTop: 0 }}>
+                In Telegram, topics (including the General topic) can be closed. When a topic is closed, the bot cannot send messages to that channel or topic — unless it has admin rights.
+              </p>
+              <div style={s.helpWarning}>
+                <p style={{ margin: 0 }}>
+                  <strong>What you see:</strong> If you try to send a message and the topic is closed, the send fails with the error <strong>"TOPIC_CLOSED"</strong>.
+                </p>
+              </div>
+              <p style={s.helpText}>
+                <strong>If you still want to send messages to closed topics via your bot,</strong> follow these steps to give the bot admin rights:
+              </p>
+              <ol style={s.helpList}>
+                <li>
+                  Open your Telegram Supergroup
+                </li>
+                <li>
+                  Tap the <strong>group name</strong> at the top of the chat
+                </li>
+                <li>
+                  Tap <strong>Edit</strong> in the top-right corner
+                </li>
+                <li>
+                  Scroll down and tap <strong>Administrators</strong>
+                </li>
+                <li>
+                  Tap <strong>Add Admin</strong>
+                </li>
+                <li>
+                  Search for your <strong>bot's username</strong> (e.g. @my_trading_bot) and select it
+                </li>
+                <li>
+                  <strong>Deselect all permissions</strong> except <strong>"Manage Topics"</strong>
+                  <span style={s.helpHint}>
+                    The bot only needs "Manage Topics" to post in closed topics. All other permissions can be disabled for security.
+                  </span>
+                </li>
+                <li>
+                  Tap <strong>Done</strong> or <strong>Add Admin</strong>
+                </li>
+              </ol>
+              <div style={s.helpTip}>
+                <p style={{ margin: 0 }}>
+                  <strong>Result:</strong> The bot is now an admin with "Manage Topics" permission. It can send messages to <strong>any</strong> closed topic, including the General topic.
+                </p>
+              </div>
+              <div style={s.helpWarning}>
+                <p style={{ margin: 0 }}>
+                  <strong>Note:</strong> Closing or reopening topics sometimes does not work reliably in the <strong>Telegram mobile app</strong>. For best results, use the <strong>Telegram Desktop app</strong> or <strong>Telegram Web</strong>.
+                </p>
+              </div>
+            </div>
           </>
         )}
 
