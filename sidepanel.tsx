@@ -2534,112 +2534,183 @@ function HelpView({
 
         {activeTab === "telegram-topics" && (
           <>
-            {/* What are Topics */}
+            {/* Preface */}
             <div style={s.helpSection}>
               <h2 style={s.helpSectionTitle}>What Are Telegram Topics?</h2>
-              <p style={s.helpText}>
-                Topics (Forum Mode) allow you to organize messages into separate
-                discussions within a single Telegram group. Each topic has its own
-                message feed, and messages sent to a topic appear only in that topic.
+              <p style={{ ...s.helpText, marginTop: 0 }}>
+                By default, Telegram only lets you create <strong>normal groups</strong>.
+                These are simple chats where all messages appear in one single feed.
               </p>
               <p style={s.helpText}>
-                Once a Telegram group has Forum Mode enabled, the original "main chat"
-                becomes the <strong>General topic</strong>. Messages sent without selecting
-                a specific topic land here automatically.
+                You can manually enable <strong>Topics</strong> for any group.
+                This upgrades the group from a normal group to a <strong>Supergroup</strong>.
+                See <strong>Step 1</strong> below for how to do this.
               </p>
+              <p style={s.helpText}>
+                Once Topics are enabled, you can create <strong>custom topics</strong> inside
+                the Supergroup. Each topic acts like its own sub-channel with a dedicated
+                message feed. Messages sent to a specific topic only appear in that topic.
+              </p>
+              <p style={s.helpText}>
+                The original "main chat" becomes the <strong>General topic</strong>.
+                Messages sent without selecting a specific topic land here automatically.
+              </p>
+              <p style={s.helpText}>
+                Additionally, there is an <strong>"All"</strong> view that consolidates
+                messages from every topic into a single chronological feed, so you can
+                see all activity across the entire group at once.
+              </p>
+            </div>
+
+            {/* STEP 1 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 1: Enable Topics in Your Group</h2>
+              <p style={s.helpText}>
+                <strong>Prerequisite:</strong> You have already created a normal Telegram group.
+                If you haven't set up a group yet, follow the <strong>Groups</strong> tab first.
+              </p>
+              <ol style={s.helpList}>
+                <li>
+                  Open your Telegram group
+                </li>
+                <li>
+                  Tap the <strong>group name</strong> at the top of the chat
+                </li>
+                <li>
+                  Tap <strong>Edit</strong> in the top-right corner
+                </li>
+                <li>
+                  Scroll down to the <strong>Topics</strong> section
+                  <span style={s.helpHint}>
+                    This section is disabled by default for normal groups.
+                  </span>
+                </li>
+                <li>
+                  Toggle <strong>"Enable Topics"</strong> ON
+                </li>
+              </ol>
+              <div style={s.helpTip}>
+                <p>
+                  <strong>Display options:</strong> Once Topics are enabled, you can choose how to view them:
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9ca3af" }}>
+                  <strong>View as Tabs</strong> — Topics are shown as tabs at the top of the chat
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9ca3af" }}>
+                  <strong>View as List</strong> — Topics are shown in a list format (like a folder structure)
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9ca3af" }}>
+                  You can switch between these views anytime in the group settings.
+                </p>
+              </div>
               <div style={s.helpWarning}>
                 <p>
-                  <strong>Note:</strong> In the Telegram app, Forum Mode changes the view
-                  to topic-only. You can toggle "View as Messages" in Telegram to see all
-                  messages chronologically (like a normal group).
+                  <strong>Important:</strong> Enabling Topics is <strong>permanent</strong>. Once enabled, you cannot disable Topics or revert the group back to a normal chat.
                 </p>
               </div>
             </div>
 
-            {/* Enable Topics */}
+            {/* STEP 2 */}
             <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>How to Enable Topics</h2>
+              <h2 style={s.helpSectionTitle}>STEP 2: Create a New Topic</h2>
               <ol style={s.helpList}>
-                <li>Open your Telegram group</li>
-                <li>Tap the group name at the top</li>
-                <li>Tap <strong>Edit</strong> (pencil icon)</li>
-                <li>Scroll down to <strong>Topics</strong></li>
-                <li>Toggle <strong>"Topics"</strong> ON</li>
-                <li>Confirmation: "Forum Mode enabled"</li>
+                <li>
+                  Open your <strong>Supergroup</strong> in Telegram
+                </li>
+                <li>
+                  Tap the <strong>three dots</strong> (⋯) in the top-right corner
+                </li>
+                <li>
+                  Select <strong>"New Topic"</strong>
+                </li>
+                <li>
+                  Enter a <strong>name</strong> for your topic
+                </li>
+                <li>
+                  Choose an <strong>emoji</strong> to represent the topic
+                </li>
+                <li>
+                  Tap <strong>Create</strong>
+                </li>
               </ol>
               <div style={s.helpTip}>
-                <p><strong>⚠️ Important:</strong> Enabling Topics is permanent for supergroups.
-                Once enabled, you cannot disable Forum Mode.</p>
+                <p>
+                  <strong>Tip:</strong> You can create as many topics as you need.
+                  Each topic gets its own message feed and can be selected individually
+                  in TV Capture when sending screenshots.
+                </p>
               </div>
             </div>
 
-            {/* Get Topic Link */}
+            {/* STEP 3 */}
             <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>How to Get a Topic Share Link</h2>
+              <h2 style={s.helpSectionTitle}>STEP 3: Get Your Topic Share Link</h2>
+              <p style={s.helpText}>
+                The Share Link contains the <strong>Topic ID</strong> that TV Capture needs
+                to send messages to this specific topic.
+              </p>
               <ol style={s.helpList}>
-                <li>Open the desired topic in Telegram</li>
-                <li>Tap the topic name at the top of the chat</li>
-                <li>Tap <strong>"Copy Message Link"</strong> / <strong>"Link teilen"</strong></li>
+                <li>
+                  Open your <strong>Supergroup</strong> in Telegram
+                </li>
+                <li>
+                  Select the <strong>topic</strong> you want to use
+                </li>
+                <li>
+                  Tap the <strong>topic name</strong> at the top of the chat
+                </li>
+                <li>
+                  <strong>Copy topic share link</strong>
+                </li>
               </ol>
               <p style={s.helpText}>
                 The link looks like:
               </p>
               <code style={s.codeBlock}>https://t.me/c/3719682271/2</code>
-              <p style={s.helpText}>
-                The <strong>last number</strong> (e.g. <code>2</code>) is the Topic ID.
-              </p>
+            </div>
+
+            {/* STEP 4 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 4: Setup Your Telegram Topic in TV Capture</h2>
+              <ol style={s.helpList}>
+                <li>
+                  Go to the <strong>Settings</strong> page in TV Capture
+                </li>
+                <li>
+                  Find your <strong>Telegram Channel</strong> (the Supergroup you set up earlier)
+                </li>
+                <li>
+                  Click <strong>"[+ Add Topic]"</strong>
+                </li>
+                <li>
+                  Enter a <strong>name</strong> for the topic (e.g. "Trading Signals")
+                </li>
+                <li>
+                  Paste the <strong>Share Link</strong> from Step 3 into the link field
+                  <span style={s.helpHint}>
+                    TV Capture automatically extracts the Topic ID from the link.
+                  </span>
+                </li>
+                <li>
+                  Click <strong>"Add"</strong>
+                </li>
+                <li>
+                  Click <strong>"Test Connectivity"</strong> to verify the topic works
+                </li>
+              </ol>
+              <div style={s.helpTip}>
+                <p>
+                  ✅ If the test succeeds, you're all set! TV Capture can now send
+                  screenshots to this specific topic.
+                </p>
+              </div>
               <div style={s.helpWarning}>
                 <p>
-                  <strong>⚠️ Important:</strong> Use the link from the <strong>topic header</strong>,
-                  NOT from a long-press on an individual message. A message link also starts with
-                  <code> t.me/c/...</code> but the last number is a message ID, not a topic ID.
+                  <strong>Note:</strong> The <strong>General topic</strong> (Topic ID 1) is already
+                  covered by your main channel configuration. You don't need to add it separately —
+                  messages sent without selecting a topic land there automatically.
                 </p>
               </div>
-            </div>
-
-            {/* How Topics Work in TV Capture */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>How Topics Work in TV Capture</h2>
-              <ul style={s.helpList}>
-                <li><strong>General topic:</strong> Messages sent without a topic selection go to General. The main channel configuration already covers this — no separate setup needed.</li>
-                <li><strong>Custom topics:</strong> Add them via Settings → Telegram Channel → "[+ Add Topic]". Paste the Share Link and TV Capture will parse it automatically.</li>
-                <li><strong>Manual entry:</strong> If the Share Link doesn't work, use "Enter manually" to type the Topic ID and name.</li>
-                <li><strong>Topic ID 1:</strong> This is reserved for General. TV Capture blocks it — use the main channel instead.</li>
-              </ul>
-              <div style={s.helpTip}>
-                <p><strong>Topic IDs are permanent</strong> — they don't change as long as the topic exists.
-                Even if the topic is archived and reopened, the same ID works.</p>
-                <p style={{ margin: "4px 0 0" }}>
-                  ⚠️ If you delete the topic in Telegram and recreate it, the ID will be different.
-                  You'll need to update it in TV Capture.
-                </p>
-              </div>
-            </div>
-
-            {/* Bot Permissions */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>Bot Permissions for Topics</h2>
-              <p style={s.helpText}>
-                Sending to Topics requires <strong>no additional bot permissions</strong> beyond
-                normal messaging. The bot uses the same <code>sendMessage</code> and
-                <code>sendPhoto</code> methods — just with an added topic ID.
-              </p>
-              <p style={s.helpText}>
-                The only requirement is that the Telegram group has <strong>Forum Mode enabled</strong>.
-              </p>
-            </div>
-
-            {/* Chat ID Auto-Correction */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>Chat ID Auto-Correction</h2>
-              <p style={s.helpText}>
-                When a normal Telegram group is upgraded to a Supergroup (by enabling Topics
-                or other features), the Chat ID changes. TV Capture detects this automatically
-                when you paste a Share Link and updates the Chat ID for you.
-              </p>
-              <p style={s.helpText}>
-                You'll see a toast notification: <em>"Chat ID updated automatically from the Share Link."</em>
-              </p>
             </div>
           </>
         )}
