@@ -11,7 +11,7 @@
  * Updated: Dark Glassmorphism theme (2026-04-20)
  */
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, Fragment } from "react"
 import {
   DndContext,
   closestCenter,
@@ -83,6 +83,77 @@ import { testDiscordConnection, testDiscordThread } from "./lib-discord"
 // ---------------------------------------------------------------------------
 
 type View = "capture" | "settings" | "help"
+
+// ---------------------------------------------------------------------------
+// Keyboard Shortcut Utilities
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a keyboard shortcut string from chrome.commands.getAll() into
+ * normalized modifier key names. Handles all known Chrome API formats:
+ * - Manifest format: "Alt+S", "Ctrl+Shift+Y"
+ * - Mac display format: "⌥S", "⌘⇧S" (Unicode symbols without separator)
+ * - Mac name format: "Option+S", "Command+Shift+Y"
+ */
+function parseShortcut(shortcut: string): string[] {
+  if (!shortcut) return []
+
+  // Format with '+' separator: "Alt+S", "Command+Shift+Y", "Option+S"
+  if (shortcut.includes("+")) {
+    return shortcut.split("+").map(key => {
+      if (key === "Option") return "Alt"      // Normalize Mac "Option" → "Alt"
+      if (key === "MacCtrl") return "Ctrl"    // Normalize Mac "MacCtrl" → "Ctrl"
+      return key
+    })
+  }
+
+  // Mac display format: Unicode modifier symbols concatenated with key
+  // e.g., "⌥S" → ["Alt", "S"], "⌘⇧S" → ["Command", "Shift", "S"]
+  const macSymbols: Record<string, string> = {
+    "\u2318": "Command",  // ⌘
+    "\u2325": "Alt",      // ⌥
+    "\u21E7": "Shift",    // ⇧
+    "\u2303": "Ctrl",     // ⌃
+  }
+
+  const keys: string[] = []
+  let remaining = shortcut
+
+  while (remaining.length > 0) {
+    const firstChar = remaining[0]
+    if (macSymbols[firstChar]) {
+      keys.push(macSymbols[firstChar])
+      remaining = remaining.slice(1)
+    } else {
+      // Rest is the actual key (letter, number, etc.)
+      keys.push(remaining)
+      break
+    }
+  }
+
+  return keys
+}
+
+/** Get display info for a modifier key. Returns null for non-modifier keys. */
+function getKeyDisplay(key: string, isMac: boolean): { symbol: string; label: string } | null {
+  if (key === "Alt") {
+    return isMac
+      ? { symbol: "⌥", label: "Option" }
+      : { symbol: "", label: "Alt" }
+  }
+  if (key === "Ctrl") {
+    return isMac
+      ? { symbol: "⌃", label: "Control" }
+      : { symbol: "", label: "Ctrl" }
+  }
+  if (key === "Shift") {
+    return { symbol: "⇧", label: "Shift" }
+  }
+  if (key === "Command") {
+    return { symbol: "⌘", label: "Command" }
+  }
+  return null // Not a modifier key — render as-is
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -1022,6 +1093,12 @@ function SettingsView({
   // Drag & Drop state
   const [dragActiveId, setDragActiveId] = useState<number | null>(null)
 
+  // Keyboard shortcut info (Phase 10.3)
+  const [shortcutInfo, setShortcutInfo] = useState<{
+    shortcut: string
+    isSet: boolean
+  } | null>(null)
+
   // Drag & Drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1044,6 +1121,21 @@ function SettingsView({
   // Load templates
   useEffect(() => {
     getTemplates().then(setTemplates)
+  }, [])
+
+  // Load actual keyboard shortcut assignment (Phase 10.3)
+  useEffect(() => {
+    chrome.commands.getAll().then((commands) => {
+      const captureCommand = commands.find(
+        (cmd) => cmd.name === "capture-tradingview"
+      )
+      if (captureCommand) {
+        setShortcutInfo({
+          shortcut: captureCommand.shortcut,
+          isSet: captureCommand.shortcut !== "",
+        })
+      }
+    })
   }, [])
 
   // Auto-dismiss toast after 4 seconds
@@ -1916,23 +2008,81 @@ function SettingsView({
         isOpen={settingsUIState.sections?.shortcuts === true}
         onToggle={() => handleToggleSection("shortcuts")}
       >
-        <div style={s.shortcutRow}>
-          <kbd style={s.kbd}>Opt</kbd>
-          <span style={s.shortcutPlus}>+</span>
-          <kbd style={s.kbd}>S</kbd>
-          <span style={s.shortcutLabel}>Capture chart</span>
-        </div>
-
-        <p style={s.shortcutHint}>
-          Works on TradingView charts. The chart area is auto-detected and cropped.
-        </p>
-
-        <button
-          style={s.shortcutLink}
-          onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
-        >
-          Change shortcut in Chrome settings
-        </button>
+        {shortcutInfo === null ? (
+          <p style={s.shortcutLoading}>Checking shortcut assignment...</p>
+        ) : !shortcutInfo.isSet ? (
+          <>
+            <div style={s.shortcutWarning}>
+              <span style={s.warningIcon}>⚠️</span>
+              <span style={s.warningText}>No keyboard shortcut assigned</span>
+            </div>
+            <p style={s.shortcutHint}>
+              Please set a shortcut in Chrome Settings for &quot;Capture Screenshot from TradingView Chart&quot;.
+            </p>
+            <p style={s.shortcutSectionLabel}>Recommended Shortcut:</p>
+            <div style={s.shortcutRow}>
+              <kbd style={s.kbd}>
+                <><span>⌥</span><span style={{ marginLeft: 4 }}>Option</span></>
+              </kbd>
+              <span style={s.shortcutPlus}>+</span>
+              <kbd style={s.kbd}><span>S</span></kbd>
+              <span style={s.shortcutLabel}>for Mac</span>
+            </div>
+            <div style={s.shortcutRow}>
+              <kbd style={s.kbd}><span>Alt</span></kbd>
+              <span style={s.shortcutPlus}>+</span>
+              <kbd style={s.kbd}><span>S</span></kbd>
+              <span style={s.shortcutLabel}>for Windows</span>
+            </div>
+            <button
+              style={s.shortcutLink}
+              onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
+            >
+              Set shortcut in Chrome settings
+            </button>
+          </>
+        ) : (
+          (() => {
+            const parsedKeys = parseShortcut(shortcutInfo.shortcut)
+            const isMac = navigator.platform.includes("Mac")
+            return (
+              <>
+                <p style={s.shortcutSectionLabel}>Currently Selected Shortcut:</p>
+                <div style={s.shortcutRow}>
+                  {parsedKeys.map((key, i) => {
+                    const display = getKeyDisplay(key, isMac)
+                    return (
+                      <Fragment key={i}>
+                        {i > 0 && <span style={s.shortcutPlus}>+</span>}
+                        <kbd style={s.kbd}>
+                          {display ? (
+                            isMac ? (
+                              <><span>{display.symbol}</span><span style={{ marginLeft: 4 }}>{display.label}</span></>
+                            ) : (
+                              <span>{display.label}</span>
+                            )
+                          ) : (
+                            <span>{key}</span>
+                          )}
+                        </kbd>
+                      </Fragment>
+                    )
+                  })}
+                  <span style={s.shortcutLabel}>Capture chart</span>
+                </div>
+                <p style={s.shortcutHint}>
+                  Works on TradingView charts. The chart area is auto-detected and cropped.
+                </p>
+                <button
+                  style={s.shortcutLink}
+                  onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
+                >
+                  Change shortcut in Chrome settings
+                </button>
+              </>
+            )
+          })()
+        )}
       </CollapsibleSection>
 
       {/* Delete Confirmation for Templates (unchanged) */}
@@ -2709,7 +2859,8 @@ const s: Record<string, React.CSSProperties> = {
     marginBottom: 8,
   },
   kbd: {
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
     padding: "4px 10px",
     fontSize: 13,
     fontFamily: "monospace",
@@ -2727,6 +2878,11 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: "#9ca3af",
   },
+  shortcutSectionLabel: {
+    fontSize: 13,
+    color: "#9ca3af",
+    margin: "0 0 6px",
+  },
   shortcutHint: {
     fontSize: 12,
     color: "#6b7280",
@@ -2740,6 +2896,29 @@ const s: Record<string, React.CSSProperties> = {
     color: "#14b8a6",
     cursor: "pointer",
     textDecoration: "underline",
+  },
+  shortcutLoading: {
+    fontSize: 13,
+    color: "#6b7280",
+    margin: "0 0 8px",
+  },
+  shortcutWarning: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+    padding: "8px 12px",
+    backgroundColor: "rgba(234, 179, 8, 0.1)",
+    border: "1px solid rgba(234, 179, 8, 0.3)",
+    borderRadius: 6,
+  },
+  warningIcon: {
+    fontSize: 14,
+  },
+  warningText: {
+    fontSize: 13,
+    color: "#eab308",
+    fontWeight: 500,
   },
   // Template grid styles
   templateSection: {
