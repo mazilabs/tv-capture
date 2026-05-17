@@ -1332,7 +1332,7 @@ function SettingsView({
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 10000)
+    }, 3000)
   }
 
   // Add topic
@@ -1436,7 +1436,7 @@ function SettingsView({
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 10000)
+    }, 3000)
   }
 
   // Add thread
@@ -1552,7 +1552,7 @@ function SettingsView({
     }
     setTimeout(() => {
       setTestStates((prev) => ({ ...prev, [key]: "idle" }))
-    }, 10000)
+    }, 3000)
   }
 
   // -----------------------------------------------------------------------

@@ -243,6 +243,9 @@ function mapError(errorCode: number, description: string): string {
     case 401:
       return "Invalid Bot Token. Please check your token."
 
+    case 404:
+      return "Bot Token invalid. Please check your Bot Token."
+
     case 403:
       return "Bot does not have access to this chat. Start a conversation with the bot first."
 
