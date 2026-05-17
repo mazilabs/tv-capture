@@ -2198,7 +2198,7 @@ function SettingsView({
 }
 
 // ---------------------------------------------------------------------------
-// Help View — Setup Guide (Telegram, Discord, Telegram Topics)
+// Help View — Setup Guide (Telegram, Discord, Topics, Threads)
 // ---------------------------------------------------------------------------
 
 function HelpView({
@@ -2206,17 +2206,41 @@ function HelpView({
 }: {
   onBack: () => void
 }) {
-  const [helpTab, setHelpTab] = useState<"telegram" | "discord" | "topics">("telegram")
+  const [activeTab, setActiveTab] = useState<
+    "telegram-groups" | "telegram-topics" | "discord-channels" | "discord-threads"
+  >("telegram-groups")
 
   const styles: Record<string, React.CSSProperties> = {
+    platformBar: {
+      display: "flex",
+      gap: 12,
+      marginBottom: 16,
+      flexShrink: 0,
+    },
+    platformBox: {
+      flex: 1,
+      border: "1px solid #2c3038",
+      borderRadius: 12,
+      backgroundColor: "rgba(37, 40, 48, 0.4)",
+      overflow: "hidden",
+    },
+    platformLabel: {
+      padding: "10px 0 6px",
+      textAlign: "center",
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#14b8a6",
+      letterSpacing: "0.5px",
+      textTransform: "uppercase" as const,
+    },
     tabBar: {
       display: "flex",
       gap: 4,
-      marginBottom: 16,
+      padding: "0 8px",
       borderBottom: "1px solid #3a3f4a",
-      paddingBottom: 0,
     },
     tab: {
+      flex: 1,
       padding: "8px 12px",
       border: "none",
       borderRadius: "6px 6px 0 0",
@@ -2226,8 +2250,10 @@ function HelpView({
       backgroundColor: "transparent",
       color: "#6b7280",
       transition: "all 150ms",
+      textAlign: "center" as const,
     },
     tabActive: {
+      flex: 1,
       padding: "8px 12px",
       border: "none",
       borderRadius: "6px 6px 0 0",
@@ -2237,6 +2263,12 @@ function HelpView({
       backgroundColor: "#252830",
       color: "#14b8a6",
       borderBottom: "2px solid #0d9488",
+      textAlign: "center" as const,
+    },
+    contentArea: {
+      flex: 1,
+      overflow: "auto",
+      padding: "0 4px",
     },
   }
 
@@ -2259,244 +2291,248 @@ function HelpView({
         </button>
       </div>
 
-      {/* Navigation Tabs */}
-      <div style={styles.tabBar}>
-        <button
-          style={helpTab === "telegram" ? styles.tabActive : styles.tab}
-          onClick={() => setHelpTab("telegram")}
-        >
-          Telegram
-        </button>
-        <button
-          style={helpTab === "discord" ? styles.tabActive : styles.tab}
-          onClick={() => setHelpTab("discord")}
-        >
-          Discord
-        </button>
-        <button
-          style={helpTab === "topics" ? styles.tabActive : styles.tab}
-          onClick={() => setHelpTab("topics")}
-        >
-          Topics
-        </button>
+      {/* Platform Selection Bar */}
+      <div style={styles.platformBar}>
+        {/* Telegram Box */}
+        <div style={styles.platformBox}>
+          <div style={styles.platformLabel}>Telegram</div>
+          <div style={styles.tabBar}>
+            <button
+              style={activeTab === "telegram-groups" ? styles.tabActive : styles.tab}
+              onClick={() => setActiveTab("telegram-groups")}
+            >
+              Groups
+            </button>
+            <button
+              style={activeTab === "telegram-topics" ? styles.tabActive : styles.tab}
+              onClick={() => setActiveTab("telegram-topics")}
+            >
+              Topics
+            </button>
+          </div>
+        </div>
+
+        {/* Discord Box */}
+        <div style={styles.platformBox}>
+          <div style={styles.platformLabel}>Discord</div>
+          <div style={styles.tabBar}>
+            <button
+              style={activeTab === "discord-channels" ? styles.tabActive : styles.tab}
+              onClick={() => setActiveTab("discord-channels")}
+            >
+              Channels
+            </button>
+            <button
+              style={activeTab === "discord-threads" ? styles.tabActive : styles.tab}
+              onClick={() => setActiveTab("discord-threads")}
+            >
+              Threads
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Help Content */}
-      <div style={s.helpContent}>
-        {/* ================================================================ */}
-        {/* TELEGRAM SETUP */}
-        {/* ================================================================ */}
-        {helpTab === "telegram" && (
+      {/* Full-width Content */}
+      <div style={styles.contentArea}>
+        {activeTab === "telegram-groups" && (
           <>
-            {/* Step 1 */}
+            {/* Preface */}
             <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>STEP 1: Create Your Bot</h2>
-              <ol style={s.helpList}>
-                <li>Open Telegram (app or web)</li>
-                <li>Search for <strong>@BotFather</strong> (official Telegram bot)</li>
-                <li>Send: <code style={s.code}>/start</code></li>
-                <li>Send: <code style={s.code}>/newbot</code></li>
-                <li>Enter a name for your bot (e.g. "TV Capture")</li>
-                <li>Enter a username ending with "bot"<br/>
-                  <span style={s.helpHint}>(e.g. "my_trading_bot" or "tvcapture_max_bot")</span>
-                </li>
-                <li><span style={s.helpSuccess}>✅ DONE!</span> BotFather returns your Bot Token</li>
-              </ol>
-              <div style={s.helpTip}>
-                <p><strong>Your token looks like:</strong></p>
-                <code style={s.codeBlock}>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>
-              </div>
-              <p style={s.helpWarning}>
-                ⚠️ Keep this token secret! If leaked, use <code style={s.code}>/revoke</code> in @BotFather
+              <p style={{ ...s.helpText, marginTop: 0 }}>
+                TV Capture uses a Telegram bot to send your trading screenshots to your
+                Telegram groups. A Telegram bot uses a <strong>Bot Token</strong> to identify
+                itself to the Telegram API.
+              </p>
+              <p style={s.helpText}>
+                One bot can send to multiple groups and topics.
               </p>
             </div>
 
-            {/* Step 2 */}
+            {/* STEP 1 */}
             <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>STEP 2: Get Your Chat ID</h2>
-              <p style={s.helpText}>Choose ONE method below:</p>
+              <h2 style={s.helpSectionTitle}>STEP 1: Get Your Bot Token</h2>
 
+              {/* Option A: New Bot */}
               <div style={s.helpSubsection}>
-                <h3 style={s.helpSubsectionTitle}>OPTION A: Personal Chat (Simplest)</h3>
+                <h3 style={s.helpSubsectionTitle}>A. Create a new bot</h3>
+                <p style={s.helpText}>Use this if you don't have a Telegram bot yet.</p>
                 <ol style={s.helpList}>
-                  <li>In Telegram, search for your new bot</li>
-                  <li>Open the chat and send: <code style={s.code}>/start</code></li>
-                  <li>Open this URL in your browser:<br/>
-                    <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code><br/>
-                    <span style={s.helpHint}>(Replace {'<TOKEN>'} with your Bot Token)</span>
+                  <li>Open Telegram and search for <strong>@BotFather</strong></li>
+                  <li>Send: <code style={s.code}>/newbot</code></li>
+                  <li>Enter a display name (e.g. "TV Capture")</li>
+                  <li>Enter a username ending in <strong>"bot"</strong><br/>
+                    <span style={s.helpHint}>(e.g. "my_trading_bot" or "tvcapture_bot")</span>
                   </li>
-                  <li>You'll see JSON like this:</li>
+                  <li><span style={s.helpSuccess}>✅ Done!</span> BotFather responds with your Bot Token</li>
+                  <li><strong>Copy the Bot Token</strong></li>
                 </ol>
-                <pre style={s.jsonBlock}>{`{
-  "ok": true,
-  "result": [{
-    "message": {
-      "chat": {
-        "id": 123456789
-      }
-    }
-  }]
-}`}</pre>
-                <p style={s.helpText}>
-                  <strong>5. Copy the "id" number</strong> (positive, e.g. 123456789)
+                <div style={s.helpTip}>
+                  <code style={s.codeBlock}>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>
+                  <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0" }}>
+                    This is what a Bot Token looks like. Save it somewhere safe.
+                  </p>
+                </div>
+                <p style={s.helpWarning}>
+                  ⚠️ After creating your bot, you must <strong>disable Privacy Mode</strong>{" "}
+                  for it to work in groups → <strong>see section (C) below</strong>
                 </p>
               </div>
 
+              {/* Option B: Existing Bot */}
               <div style={s.helpSubsection}>
-                <h3 style={s.helpSubsectionTitle}>OPTION B: Group Chat</h3>
+                <h3 style={s.helpSubsectionTitle}>B. Read token from an existing bot</h3>
+                <p style={s.helpText}>
+                  Already have a bot? Ask @BotFather to show you the Bot Token again.
+                </p>
                 <ol style={s.helpList}>
-                  <li>Create a group in Telegram (or use existing)</li>
-                  <li>Add your bot to the group<br/>
-                    <span style={s.helpHint}>(Search for your bot's username, click "Add to Group")</span>
-                  </li>
+                  <li>Open <strong>@BotFather</strong> in Telegram</li>
+                  <li>Send: <code style={s.code}>/mybots</code></li>
+                  <li>Tap your bot's username in the list</li>
+                  <li>Tap <strong>"API Token"</strong> — your Bot Token is displayed</li>
+                  <li><strong>Copy the Bot Token</strong></li>
                 </ol>
-                <div style={s.helpWarning}>
-                  <p><strong>⚠️ IMPORTANT: Disable Privacy Mode FIRST!</strong></p>
-                </div>
-                <ol style={s.helpList} start={3}>
-                  <li>Open @BotFather</li>
+              </div>
+
+              {/* Option C: Privacy Mode */}
+              <div style={s.helpSubsection}>
+                <h3 style={s.helpSubsectionTitle}>C. Disable Privacy Mode (Required for Groups)</h3>
+                <p style={s.helpText}>
+                  <strong>What is Privacy Mode?</strong> Telegram bots have Privacy Mode enabled
+                  by default. This means the bot cannot send messages in groups.
+                </p>
+                <p style={s.helpText}>
+                  <strong>Fix:</strong> Disable Privacy Mode in @BotFather. Do this once, right
+                  after creating your bot.
+                </p>
+                <ol style={s.helpList}>
+                  <li>Open <strong>@BotFather</strong></li>
                   <li>Send: <code style={s.code}>/mybots</code></li>
                   <li>Select your bot</li>
-                  <li>Tap: Bot Settings → Group Privacy → <strong>DISABLE</strong></li>
-                  <li>Confirmation: "Group privacy is disabled"</li>
+                  <li>Tap <strong>Bot Settings</strong> → <strong>Group Privacy</strong></li>
+                  <li>Tap <strong>"Disable"</strong></li>
                 </ol>
-                <ol style={s.helpList} start={8}>
-                  <li>Go to your group and send any message (e.g. "test")</li>
-                  <li>Open this URL in your browser:<br/>
-                    <code style={s.codeBlock}>api.telegram.org/bot{'<TOKEN>'}/getUpdates</code>
-                  </li>
-                  <li>Find the group chat ID in the JSON:</li>
-                </ol>
-                <pre style={s.jsonBlock}>{`"chat": {
-  "id": -1001234567890
-}`}</pre>
-                <p style={s.helpText}>
-                  <strong>11. Copy the ID</strong> (NEGATIVE number, starts with -100)
+                <div style={s.helpTip}>
+                  <p><strong>Confirmation message:</strong></p>
+                  <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0" }}>
+                    "Group privacy is disabled. Bot will receive all messages in groups."
+                  </p>
+                </div>
+                <p style={{ ...s.helpText, marginBottom: 0 }}>
+                  <strong>Done.</strong> Your bot can now send messages to groups.
                 </p>
               </div>
             </div>
 
-            {/* Step 3 */}
+            {/* STEP 2 */}
             <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>STEP 3: Configure TV Capture</h2>
-              <ol style={s.helpList}>
-                <li>Copy your Bot Token into the <strong>"Bot Token"</strong> field</li>
-                <li>Copy your Chat ID into the <strong>"Chat ID"</strong> field</li>
-                <li>Click <strong>"Test Connectivity"</strong> to verify</li>
-              </ol>
-            </div>
-
-            {/* Troubleshooting */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
-              <div style={s.helpTroubleshoot}>
-                <p><strong>"Unauthorized" or "Invalid token"</strong></p>
-                <p style={s.helpHint}>→ Token is wrong. Copy again from @BotFather</p>
-              </div>
-              <div style={s.helpTroubleshoot}>
-                <p><strong>"Chat not found"</strong></p>
-                <p style={s.helpHint}>→ You never sent /start to your bot, or Chat ID is wrong</p>
-              </div>
-              <div style={s.helpTroubleshoot}>
-                <p><strong>getUpdates shows empty result: []</strong></p>
-                <p style={s.helpHint}>→ For groups: Privacy Mode is still enabled</p>
-                <p style={s.helpHint}>→ Disable it in @BotFather (see Step 2, Option B)</p>
-                <p style={s.helpHint}>→ Then send another message in the group</p>
-              </div>
-              <div style={s.helpTroubleshoot}>
-                <p><strong>Messages not arriving</strong></p>
-                <p style={s.helpHint}>→ Check token and chat ID are correct</p>
-                <p style={s.helpHint}>→ Make sure you sent /start to the bot at least once</p>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ================================================================ */}
-        {/* DISCORD SETUP */}
-        {/* ================================================================ */}
-        {helpTab === "discord" && (
-          <>
-            {/* Step 1 */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>STEP 1: Create a Webhook</h2>
-              <ol style={s.helpList}>
-                <li>Open Discord (app or web)</li>
-                <li>Go to your server's settings:<br/>
-                  <span style={s.helpHint}>Right-click server name → Server Settings</span>
-                </li>
-                <li>Navigate to <strong>Integrations</strong> → <strong>Webhooks</strong></li>
-                <li>Click <strong>"Create Webhook"</strong> or <strong>"New Webhook"</strong></li>
-                <li>Give it a name (e.g. "TV Capture")</li>
-                <li>Select the channel where screenshots should appear</li>
-                <li>Click <strong>"Copy Webhook URL"</strong></li>
-                <li><span style={s.helpSuccess}>✅ DONE!</span> You have your webhook URL</li>
-              </ol>
-              <div style={s.helpTip}>
-                <p><strong>Your webhook URL looks like:</strong></p>
-                <code style={s.codeBlock}>https://discord.com/api/webhooks/123456789/ABCdef...</code>
-              </div>
-            </div>
-
-            {/* Step 2 */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>STEP 2: Get Thread IDs (Optional)</h2>
+              <h2 style={s.helpSectionTitle}>STEP 2: Get Your Group Chat ID</h2>
               <p style={s.helpText}>
-                If you want to send screenshots to specific forum threads, you'll need the Thread ID.
+                The <strong>Bot Token</strong> identifies your bot (who sends).
+                The <strong>Chat ID</strong> identifies your group (where to send).
+                Every group has its own unique Chat ID.
               </p>
-              <ol style={s.helpList}>
-                <li>Enable Developer Mode in Discord:<br/>
-                  <span style={s.helpHint}>Settings → Advanced → Developer Mode → ON</span>
+
+              <ol style={{ ...s.helpList, marginBottom: 12 }}>
+                <li>
+                  <strong>Add your bot to the group</strong><br/>
+                  Open your group in Telegram → tap the group name at the top →
+                  "Add Members" → search for your bot's username →
+                  tap <strong>Add</strong><br/>
+                  <span style={s.helpHint}>
+                    Search for your bot's username (e.g. "@my_trading_bot" or "@tv_capture_bot").
+                  </span>
                 </li>
-                <li>Right-click on a thread name in your channel</li>
-                <li>Click <strong>"Copy ID"</strong></li>
-                <li>The copied ID is the Thread ID (a long number)</li>
+                <li>
+                  <strong>Send any message in the group</strong><br/>
+                  Type something like "test" and send it.<br/>
+                  <span style={s.helpHint}>
+                    The bot needs to "see" a message so it appears in getUpdates.
+                  </span>
+                </li>
+                <li>
+                  <strong>Open this URL in your browser</strong><br/>
+                  Have your Bot Token from Step 1 ready. Open this URL in your browser:<br/>
+                  <code style={s.codeBlock}>
+                    https://api.telegram.org/bot{'<YOUR_BOT_TOKEN>'}/getUpdates
+                  </code>
+                  <span style={s.helpHint}>
+                    Replace {'<YOUR_BOT_TOKEN>'} with your actual Bot Token.
+                  </span>
+                </li>
+                <li>
+                  <strong>Find your Chat ID in the JSON response</strong><br/>
+                  The JSON may contain multiple entries if your bot is in several groups.
+                  Look for the entry where <strong>"title"</strong> matches your group name,
+                  then copy the <strong>"id"</strong> from the <strong>"chat"</strong> object:
+                </li>
+              </ol>
+              <pre style={s.jsonBlock}>{`{
+  "ok": true,
+  "result": [
+    {
+      "message": {
+        "chat": {
+          "id": -1234567890,       ← THIS is your Chat ID
+          "title": "Your Group",
+          "type": "group"
+        },
+        "text": "test"
+      }
+    }
+  ]
+}`}</pre>
+              <ol style={s.helpList} start={5}>
+                <li>
+                  <strong>Copy the Chat ID</strong> (including the minus sign!)<br/>
+                  <span style={s.helpHint}>
+                    For a standard group, the Chat ID is a negative number starting with "-".
+                    Example: <code style={s.code}>-1234567890</code>
+                  </span>
+                </li>
+              </ol>
+
+              <div style={s.helpWarning}>
+                <p><strong>Empty result? {"{"}"ok": true, "result": []{"}"}</strong></p>
+                <p style={{ margin: "4px 0 0", fontSize: 12 }}>
+                  → Make sure Privacy Mode is disabled (see <strong>Step 1 → section (C)</strong>).<br/>
+                  → If it is already disabled, send another test message in the group<br/>
+                  &nbsp;&nbsp;and refresh the URL in your browser.
+                </p>
+              </div>
+            </div>
+
+            {/* STEP 3 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 3: Setup Your Telegram Channel</h2>
+              <ol style={s.helpList}>
+                <li>
+                  Go to the <strong>Settings</strong> page in TV Capture
+                </li>
+                <li>
+                  In the <strong>Telegram Channel</strong> section, click{" "}
+                  <strong>"+ Add Telegram Channel"</strong>
+                </li>
+                <li>
+                  Copy your <strong>Bot Token</strong> into the "Bot Token" field
+                </li>
+                <li>
+                  Copy your <strong>Chat ID</strong> into the "Chat ID" field
+                </li>
+                <li>
+                  Click <strong>"Test Connectivity"</strong> to verify everything works
+                </li>
               </ol>
               <div style={s.helpTip}>
-                <p><strong>A Thread ID looks like:</strong></p>
-                <code style={s.codeBlock}>1504005327639543898</code>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>STEP 3: Configure TV Capture</h2>
-              <ol style={s.helpList}>
-                <li>Click <strong>"+ Add Discord Channel"</strong> in Settings</li>
-                <li>Enter a name for the channel (e.g. "Signals Channel")</li>
-                <li>Paste the Webhook URL into the <strong>"Webhook URL"</strong> field</li>
-                <li>Click <strong>Add</strong></li>
-                <li>Click <strong>"Test Connectivity"</strong> to verify</li>
-              </ol>
-            </div>
-
-            {/* Troubleshooting */}
-            <div style={s.helpSection}>
-              <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
-              <div style={s.helpTroubleshoot}>
-                <p><strong>"Invalid Webhook" or "Unknown Webhook"</strong></p>
-                <p style={s.helpHint}>→ Webhook URL is wrong or the webhook was deleted</p>
-                <p style={s.helpHint}>→ Create a new webhook and update the URL</p>
-              </div>
-              <div style={s.helpTroubleshoot}>
-                <p><strong>"Missing Permissions"</strong></p>
-                <p style={s.helpHint}>→ The webhook doesn't have permission to post in the target channel</p>
-                <p style={s.helpHint}>→ Check channel permissions and webhook integration settings</p>
-              </div>
-              <div style={s.helpTroubleshoot}>
-                <p><strong>Thread ID not working</strong></p>
-                <p style={s.helpHint}>→ Make sure the thread exists in the channel</p>
-                <p style={s.helpHint}>→ Verify Developer Mode is enabled when copying the ID</p>
-                <p style={s.helpHint}>→ The webhook must have permission to send to the thread</p>
+                <p>
+                  ✅ If the test succeeds, you're all set! TV Capture can now send
+                  screenshots to your Telegram group.
+                </p>
               </div>
             </div>
           </>
         )}
 
-        {/* ================================================================ */}
-        {/* TELEGRAM TOPICS SETUP */}
-        {/* ================================================================ */}
-        {helpTab === "topics" && (
+        {activeTab === "telegram-topics" && (
           <>
             {/* What are Topics */}
             <div style={s.helpSection}>
@@ -2606,6 +2642,92 @@ function HelpView({
               </p>
             </div>
           </>
+        )}
+
+        {activeTab === "discord-channels" && (
+          <>
+            {/* Step 1 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 1: Create a Webhook</h2>
+              <ol style={s.helpList}>
+                <li>Open Discord (app or web)</li>
+                <li>Go to your server's settings:<br/>
+                  <span style={s.helpHint}>Right-click server name → Server Settings</span>
+                </li>
+                <li>Navigate to <strong>Integrations</strong> → <strong>Webhooks</strong></li>
+                <li>Click <strong>"Create Webhook"</strong> or <strong>"New Webhook"</strong></li>
+                <li>Give it a name (e.g. "TV Capture")</li>
+                <li>Select the channel where screenshots should appear</li>
+                <li>Click <strong>"Copy Webhook URL"</strong></li>
+                <li><span style={s.helpSuccess}>✅ DONE!</span> You have your webhook URL</li>
+              </ol>
+              <div style={s.helpTip}>
+                <p><strong>Your webhook URL looks like:</strong></p>
+                <code style={s.codeBlock}>https://discord.com/api/webhooks/123456789/ABCdef...</code>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 2: Get Thread IDs (Optional)</h2>
+              <p style={s.helpText}>
+                If you want to send screenshots to specific forum threads, you'll need the Thread ID.
+              </p>
+              <ol style={s.helpList}>
+                <li>Enable Developer Mode in Discord:<br/>
+                  <span style={s.helpHint}>Settings → Advanced → Developer Mode → ON</span>
+                </li>
+                <li>Right-click on a thread name in your channel</li>
+                <li>Click <strong>"Copy ID"</strong></li>
+                <li>The copied ID is the Thread ID (a long number)</li>
+              </ol>
+              <div style={s.helpTip}>
+                <p><strong>A Thread ID looks like:</strong></p>
+                <code style={s.codeBlock}>1504005327639543898</code>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>STEP 3: Configure TV Capture</h2>
+              <ol style={s.helpList}>
+                <li>Click <strong>"+ Add Discord Channel"</strong> in Settings</li>
+                <li>Enter a name for the channel (e.g. "Signals Channel")</li>
+                <li>Paste the Webhook URL into the <strong>"Webhook URL"</strong> field</li>
+                <li>Click <strong>Add</strong></li>
+                <li>Click <strong>"Test Connectivity"</strong> to verify</li>
+              </ol>
+            </div>
+
+            {/* Troubleshooting */}
+            <div style={s.helpSection}>
+              <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>"Invalid Webhook" or "Unknown Webhook"</strong></p>
+                <p style={s.helpHint}>→ Webhook URL is wrong or the webhook was deleted</p>
+                <p style={s.helpHint}>→ Create a new webhook and update the URL</p>
+              </div>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>"Missing Permissions"</strong></p>
+                <p style={s.helpHint}>→ The webhook doesn't have permission to post in the target channel</p>
+                <p style={s.helpHint}>→ Check channel permissions and webhook integration settings</p>
+              </div>
+              <div style={s.helpTroubleshoot}>
+                <p><strong>Thread ID not working</strong></p>
+                <p style={s.helpHint}>→ Make sure the thread exists in the channel</p>
+                <p style={s.helpHint}>→ Verify Developer Mode is enabled when copying the ID</p>
+                <p style={s.helpHint}>→ The webhook must have permission to send to the thread</p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "discord-threads" && (
+          <div style={s.helpSection}>
+            <p style={{ ...s.helpText, marginTop: 0, color: "#6b7280", fontStyle: "italic" }}>
+              Discord threads setup guide coming soon.
+            </p>
+          </div>
         )}
       </div>
     </main>
@@ -3269,6 +3391,11 @@ const s: Record<string, React.CSSProperties> = {
   // Help view styles
   helpContent: {
     marginTop: 8,
+    flex: 1,
+    overflowY: "auto" as const,
+    minHeight: 0,
+    // Hide scrollbar
+    scrollbarWidth: "none" as const,
   },
   helpBox: {
     backgroundColor: "rgba(13, 148, 136, 0.08)",
