@@ -499,6 +499,8 @@ export function ChannelCard({
                       onSave={onTopicSave}
                       onCancel={onEditTopicCancel}
                       onTopicId1Blocked={onTopicId1Blocked}
+                      onRefresh={onRefresh}
+                      onToast={onToast}
                       isActive={true}
                     />
                   )
@@ -512,6 +514,7 @@ export function ChannelCard({
                   onCancel={() => setActiveFormId(null)}
                   onToast={onToast}
                   onTopicId1Blocked={onTopicId1Blocked}
+                  onRefresh={onRefresh}
                   isActive={true}
                 />
               )}

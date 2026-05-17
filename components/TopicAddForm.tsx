@@ -16,6 +16,7 @@ type TopicAddFormProps = {
   onCancel: () => void
   onToast: (message: string) => void
   onTopicId1Blocked: () => void
+  onRefresh?: () => Promise<void>
   isActive?: boolean
 }
 
@@ -25,6 +26,7 @@ export function TopicAddForm({
   onCancel,
   onToast,
   onTopicId1Blocked,
+  onRefresh,
   isActive,
 }: TopicAddFormProps) {
   const [topicName, setTopicName] = useState("")
@@ -32,6 +34,23 @@ export function TopicAddForm({
   const [parsedTopicId, setParsedTopicId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  /**
+   * Synchronous link validation — runs on every keystroke and paste.
+   * No API calls here. Only updates parsedTopicId state for button activation.
+   */
+  const validateLink = (value: string) => {
+    if (!value.trim()) {
+      setParsedTopicId(null)
+      return
+    }
+    const parsed = parseTelegramShareLink(value.trim())
+    if (parsed && parsed.topicId !== "1") {
+      setParsedTopicId(parsed.topicId)
+    } else {
+      setParsedTopicId(null)
+    }
+  }
 
   const styles: Record<string, React.CSSProperties> = {
     form: {
@@ -62,20 +81,6 @@ export function TopicAddForm({
       backgroundColor: "#1e2028",
       color: "#e5e7eb",
       transition: "border-color 150ms",
-    },
-    parsedResult: {
-      backgroundColor: "rgba(13, 148, 136, 0.08)",
-      border: "1px solid rgba(13, 148, 136, 0.2)",
-      borderRadius: 6,
-      padding: "6px 10px",
-      marginBottom: 8,
-      fontSize: 12,
-      color: "#9ca3af",
-    },
-    parsedValue: {
-      color: "#e5e7eb",
-      fontFamily: "monospace",
-      fontSize: 12,
     },
     error: {
       fontSize: 12,
@@ -126,7 +131,7 @@ export function TopicAddForm({
       backgroundColor: "rgba(59, 130, 246, 0.08)",
       border: "1px solid rgba(59, 130, 246, 0.2)",
       borderRadius: 6,
-      padding: "6px 8px",
+      padding: "6px 10px",
       marginBottom: 8,
       fontSize: 11,
       color: "#9ca3af",
@@ -134,47 +139,40 @@ export function TopicAddForm({
     },
   }
 
-  const handleParseLink = async () => {
-    if (!link.trim()) {
-      setParsedTopicId(null)
-      return
-    }
-    setError(null)
-
-    const parsed = parseTelegramShareLink(link.trim())
-    if (!parsed) {
-      setError("Invalid Share Link format. Expected: https://t.me/c/.../...")
-      setParsedTopicId(null)
-      return
-    }
-
-    // Check Topic ID 1 blocking
-    if (parsed.topicId === "1") {
-      onTopicId1Blocked()
-      setParsedTopicId(null)
-      return
-    }
-
-    // Chat ID auto-correction
-    try {
-      const correction = await resolveAndCorrectChatId(channelId, parsed.chatId)
-      if (correction.updated) {
-        onToast(`Chat ID auto-corrected from ${correction.oldChatId} to ${correction.newChatId}`)
-      }
-    } catch {
-      // Non-critical — continue even if correction fails
-    }
-
-    setParsedTopicId(parsed.topicId)
-  }
-
   const handleSubmit = async () => {
     if (!topicName.trim() || !parsedTopicId) return
 
     setError(null)
     setLoading(true)
+
+    // Re-parse for chatId (needed for auto-correction) and final validation
+    const parsed = parseTelegramShareLink(link.trim())
+    if (!parsed) {
+      setError("Invalid Share Link format. Expected: https://t.me/c/.../...")
+      setLoading(false)
+      return
+    }
+
+    // Block topic ID "1" — always resolves to General
+    if (parsed.topicId === "1") {
+      onTopicId1Blocked()
+      setLoading(false)
+      return
+    }
+
+    // Chat ID auto-correction (legacy group → supergroup migration)
     try {
-      await onAdd(channelId, topicName.trim(), parsedTopicId)
+      const correction = await resolveAndCorrectChatId(channelId, parsed.chatId)
+      if (correction.updated) {
+        onToast(`Chat ID auto-corrected from ${correction.oldChatId} to ${correction.newChatId}`)
+        await onRefresh?.()
+      }
+    } catch {
+      // Non-critical — continue even if correction fails
+    }
+
+    try {
+      await onAdd(channelId, topicName.trim(), parsed.topicId)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add topic")
       setLoading(false)
@@ -212,14 +210,10 @@ export function TopicAddForm({
           value={link}
           onChange={(e) => {
             setLink(e.target.value)
-            // Clear parsed result when user types
-            if (!e.target.value.trim()) {
-              setParsedTopicId(null)
-            }
+            validateLink(e.target.value)
           }}
           onBlur={(e) => {
             ;(e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
-            handleParseLink()
           }}
           onFocus={(e) => {
             ;(e.target as HTMLInputElement).style.borderColor = "#0d9488"
@@ -228,25 +222,13 @@ export function TopicAddForm({
         />
       </div>
 
-      {/* Parsed result display */}
-      {parsedTopicId && (
-        <div style={styles.parsedResult}>
-          <div>
-            Parsed Topic ID: <span style={styles.parsedValue}>{parsedTopicId}</span>
-          </div>
-          <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-            ✅ Topic IDs are permanent — they don't change as long as the topic exists.
-          </div>
-        </div>
-      )}
-
       {/* Blue info box at the bottom */}
       <div style={styles.infoBox}>
         <strong>How to get a Topic Share Link:</strong>
         <ol style={{ margin: "4px 0 0", paddingLeft: 16 }}>
           <li>Open the desired topic in Telegram</li>
           <li>Tap the topic name at the top of the chat</li>
-          <li>Tap "Copy Message Link" / "Link teilen"</li>
+          <li>Copy the topic share link and paste it above</li>
         </ol>
         <p style={{ margin: "4px 0 0" }}>
           The link looks like: <code>https://t.me/c/3719682271/2</code>

@@ -8,6 +8,7 @@
 
 import { useState } from "react"
 import { parseTelegramShareLink } from "../lib-telegram-share"
+import { resolveAndCorrectChatId } from "../lib-channels"
 
 type TopicEditFormProps = {
   channelId: number
@@ -22,6 +23,8 @@ type TopicEditFormProps = {
   ) => Promise<void>
   onCancel: () => void
   onTopicId1Blocked: () => void
+  onRefresh?: () => Promise<void>
+  onToast?: (message: string) => void
   isActive?: boolean
 }
 
@@ -33,6 +36,8 @@ export function TopicEditForm({
   onSave,
   onCancel,
   onTopicId1Blocked,
+  onRefresh,
+  onToast,
   isActive,
 }: TopicEditFormProps) {
   const [name, setName] = useState(currentName)
@@ -133,6 +138,17 @@ export function TopicEditForm({
     if (parsed.topicId === "1") {
       onTopicId1Blocked()
       return
+    }
+
+    // Chat ID auto-correction (legacy group → supergroup migration)
+    try {
+      const correction = await resolveAndCorrectChatId(channelId, parsed.chatId)
+      if (correction.updated) {
+        onToast?.(`Chat ID auto-corrected from ${correction.oldChatId} to ${correction.newChatId}`)
+        await onRefresh?.()
+      }
+    } catch {
+      // Non-critical — continue even if correction fails
     }
 
     setLoading(true)

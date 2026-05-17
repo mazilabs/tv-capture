@@ -2351,6 +2351,11 @@ function HelpView({
             {/* STEP 1 */}
             <div style={s.helpSection}>
               <h2 style={s.helpSectionTitle}>STEP 1: Get Your Bot Token</h2>
+              <div style={s.helpTip}>
+                <p style={{ margin: 0 }}>
+                  <strong>Already have a bot set up?</strong> If you already have a bot token and only want to add a new Telegram group or channel, you can skip directly to <strong>Step 2</strong> to find the Chat ID.
+                </p>
+              </div>
 
               {/* Option A: New Bot */}
               <div style={s.helpSubsection}>
@@ -2367,15 +2372,17 @@ function HelpView({
                   <li><strong>Copy the Bot Token</strong></li>
                 </ol>
                 <div style={s.helpTip}>
+                  <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>
+                    This is what a Bot Token looks like:
+                  </p>
                   <code style={s.codeBlock}>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>
-                  <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0" }}>
-                    This is what a Bot Token looks like. Save it somewhere safe.
+                </div>
+                <div style={s.helpWarning}>
+                  <p style={{ margin: 0 }}>
+                    ⚠️ After creating your bot, you must <strong>disable Privacy Mode</strong>{" "}
+                    for it to work in groups → <strong>see section (C) below</strong>
                   </p>
                 </div>
-                <p style={s.helpWarning}>
-                  ⚠️ After creating your bot, you must <strong>disable Privacy Mode</strong>{" "}
-                  for it to work in groups → <strong>see section (C) below</strong>
-                </p>
               </div>
 
               {/* Option B: Existing Bot */}
@@ -2412,7 +2419,7 @@ function HelpView({
                   <li>Tap <strong>"Disable"</strong></li>
                 </ol>
                 <div style={s.helpTip}>
-                  <p><strong>Confirmation message:</strong></p>
+                  <p style={{ margin: 0 }}><strong>Confirmation message:</strong></p>
                   <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0" }}>
                     "Group privacy is disabled. Bot will receive all messages in groups."
                   </p>
@@ -2446,7 +2453,7 @@ function HelpView({
                   <strong>Send any message in the group</strong><br/>
                   Type something like "test" and send it.<br/>
                   <span style={s.helpHint}>
-                    The bot needs to "see" a message so it appears in getUpdates.
+                    The bot needs to "see" a message so it appears in getUpdates. Allow 5–10 seconds for the bot to receive the message.
                   </span>
                 </li>
                 <li>
@@ -2463,7 +2470,10 @@ function HelpView({
                   <strong>Find your Chat ID in the JSON response</strong><br/>
                   The JSON may contain multiple entries if your bot is in several groups.
                   Look for the entry where <strong>"title"</strong> matches your group name,
-                  then copy the <strong>"id"</strong> from the <strong>"chat"</strong> object:
+                  then copy the <strong>"id"</strong> from the <strong>"chat"</strong> object.
+                  <span style={s.helpHint}>
+                    Your test message is typically the last entry. Scroll to the bottom of the JSON output and verify the "title" matches your group.
+                  </span>
                 </li>
               </ol>
               <pre style={s.jsonBlock}>{`{
@@ -2472,7 +2482,7 @@ function HelpView({
     {
       "message": {
         "chat": {
-          "id": -1234567890,       ← THIS is your Chat ID
+          "id": -1234567890,       ← YOUR CHAT ID
           "title": "Your Group",
           "type": "group"
         },
@@ -2492,7 +2502,7 @@ function HelpView({
               </ol>
 
               <div style={s.helpWarning}>
-                <p><strong>Empty result? {"{"}"ok": true, "result": []{"}"}</strong></p>
+                <p style={{ margin: 0 }}><strong>Empty result? {"{"}"ok": true, "result": []{"}"}</strong></p>
                 <p style={{ margin: "4px 0 0", fontSize: 12 }}>
                   → Make sure Privacy Mode is disabled (see <strong>Step 1 → section (C)</strong>).<br/>
                   → If it is already disabled, send another test message in the group<br/>
@@ -2523,7 +2533,7 @@ function HelpView({
                 </li>
               </ol>
               <div style={s.helpTip}>
-                <p>
+                <p style={{ margin: 0 }}>
                   ✅ If the test succeeds, you're all set! TV Capture can now send
                   screenshots to your Telegram group.
                 </p>
@@ -2587,10 +2597,13 @@ function HelpView({
                 </li>
                 <li>
                   Toggle <strong>"Enable Topics"</strong> ON
+                  <span style={s.helpHint}>
+                    After toggling ON, wait 5–10 seconds before going back. Telegram needs time to save the setting. If it doesn't work on the first try, repeat this step until your group transitions into a supergroup.
+                  </span>
                 </li>
               </ol>
               <div style={s.helpTip}>
-                <p>
+                <p style={{ margin: 0 }}>
                   <strong>Display options:</strong> Once Topics are enabled, you can choose how to view them:
                 </p>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9ca3af" }}>
@@ -2604,7 +2617,7 @@ function HelpView({
                 </p>
               </div>
               <div style={s.helpWarning}>
-                <p>
+                <p style={{ margin: 0 }}>
                   <strong>Important:</strong> Enabling Topics is <strong>permanent</strong>. Once enabled, you cannot disable Topics or revert the group back to a normal chat.
                 </p>
               </div>
@@ -2634,7 +2647,7 @@ function HelpView({
                 </li>
               </ol>
               <div style={s.helpTip}>
-                <p>
+                <p style={{ margin: 0 }}>
                   <strong>Tip:</strong> You can create as many topics as you need.
                   Each topic gets its own message feed and can be selected individually
                   in TV Capture when sending screenshots.
@@ -2699,13 +2712,13 @@ function HelpView({
                 </li>
               </ol>
               <div style={s.helpTip}>
-                <p>
+                <p style={{ margin: 0 }}>
                   ✅ If the test succeeds, you're all set! TV Capture can now send
                   screenshots to this specific topic.
                 </p>
               </div>
               <div style={s.helpWarning}>
-                <p>
+                <p style={{ margin: 0 }}>
                   <strong>Note:</strong> The <strong>General topic</strong> (Topic ID 1) is already
                   covered by your main channel configuration. You don't need to add it separately —
                   messages sent without selecting a topic land there automatically.
@@ -2733,7 +2746,7 @@ function HelpView({
                 <li><span style={s.helpSuccess}>✅ DONE!</span> You have your webhook URL</li>
               </ol>
               <div style={s.helpTip}>
-                <p><strong>Your webhook URL looks like:</strong></p>
+                <p style={{ margin: 0 }}><strong>Your webhook URL looks like:</strong></p>
                 <code style={s.codeBlock}>https://discord.com/api/webhooks/123456789/ABCdef...</code>
               </div>
             </div>
@@ -2753,7 +2766,7 @@ function HelpView({
                 <li>The copied ID is the Thread ID (a long number)</li>
               </ol>
               <div style={s.helpTip}>
-                <p><strong>A Thread ID looks like:</strong></p>
+                <p style={{ margin: 0 }}><strong>A Thread ID looks like:</strong></p>
                 <code style={s.codeBlock}>1504005327639543898</code>
               </div>
             </div>
@@ -2774,18 +2787,18 @@ function HelpView({
             <div style={s.helpSection}>
               <h2 style={s.helpSectionTitle}>Troubleshooting</h2>
               <div style={s.helpTroubleshoot}>
-                <p><strong>"Invalid Webhook" or "Unknown Webhook"</strong></p>
-                <p style={s.helpHint}>→ Webhook URL is wrong or the webhook was deleted</p>
+                <p style={{ margin: 0 }}><strong>"Invalid Webhook" or "Unknown Webhook"</strong></p>
+                <p style={{ ...s.helpHint, margin: "4px 0 0" }}>→ Webhook URL is wrong or the webhook was deleted</p>
                 <p style={s.helpHint}>→ Create a new webhook and update the URL</p>
               </div>
               <div style={s.helpTroubleshoot}>
-                <p><strong>"Missing Permissions"</strong></p>
-                <p style={s.helpHint}>→ The webhook doesn't have permission to post in the target channel</p>
+                <p style={{ margin: 0 }}><strong>"Missing Permissions"</strong></p>
+                <p style={{ ...s.helpHint, margin: "4px 0 0" }}>→ The webhook doesn't have permission to post in the target channel</p>
                 <p style={s.helpHint}>→ Check channel permissions and webhook integration settings</p>
               </div>
               <div style={s.helpTroubleshoot}>
-                <p><strong>Thread ID not working</strong></p>
-                <p style={s.helpHint}>→ Make sure the thread exists in the channel</p>
+                <p style={{ margin: 0 }}><strong>Thread ID not working</strong></p>
+                <p style={{ ...s.helpHint, margin: "4px 0 0" }}>→ Make sure the thread exists in the channel</p>
                 <p style={s.helpHint}>→ Verify Developer Mode is enabled when copying the ID</p>
                 <p style={s.helpHint}>→ The webhook must have permission to send to the thread</p>
               </div>
@@ -3539,18 +3552,22 @@ const s: Record<string, React.CSSProperties> = {
     backgroundColor: "rgba(245, 158, 11, 0.1)",
     border: "1px solid rgba(245, 158, 11, 0.2)",
     borderRadius: 6,
-    padding: "8px 10px",
-    margin: "8px 0",
+    padding: "6px 10px",
+    margin: "6px 0",
   },
   helpTip: {
     backgroundColor: "rgba(59, 130, 246, 0.08)",
     border: "1px solid rgba(59, 130, 246, 0.2)",
     borderRadius: 6,
-    padding: "8px 10px",
-    margin: "8px 0",
+    padding: "6px 10px",
+    margin: "6px 0",
   },
   helpTroubleshoot: {
-    marginBottom: 12,
+    backgroundColor: "rgba(239, 68, 68, 0.06)",
+    border: "1px solid rgba(239, 68, 68, 0.15)",
+    borderRadius: 6,
+    padding: "6px 10px",
+    margin: "6px 0",
   },
   code: {
     fontFamily: "monospace",
