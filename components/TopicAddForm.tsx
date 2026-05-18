@@ -237,6 +237,9 @@ export function TopicAddForm({
         <p style={{ margin: "4px 0 0" }}>
           The link looks like: <code>https://t.me/c/3719682271/2</code>
         </p>
+        <p style={{ margin: "4px 0 0", fontSize: 10, color: "#6b7280" }}>
+          For further instructions, see the <strong>Help section</strong>.
+        </p>
       </div>
 
       <div style={styles.buttonRow}>

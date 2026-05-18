@@ -166,12 +166,15 @@ export function ThreadAddForm({
       <div style={styles.infoBox}>
         <strong>How to get a Thread ID:</strong>
         <ol style={{ margin: "4px 0 0", paddingLeft: 16 }}>
-          <li>Enable Developer Mode in Discord (Settings → Advanced)</li>
-          <li>Right-click a thread name</li>
-          <li>Click "Copy ID"</li>
+          <li>Select your thread in Discord</li>
+          <li>Click <strong>More</strong> (⋯) in the thread</li>
+          <li>Click <strong>Copy Thread ID</strong></li>
         </ol>
         <p style={{ margin: "4px 0 0" }}>
           The ID looks like: <code>1504005327639543898</code>
+        </p>
+        <p style={{ margin: "4px 0 0", fontSize: 10, color: "#6b7280" }}>
+          For further instructions, see the <strong>Help section</strong>.
         </p>
       </div>
 
