@@ -86,6 +86,8 @@ export function SendChannelCard({
         ...styles.card,
         border: "1px solid #3a3f4a",
         backgroundColor: "rgba(37, 40, 48, 0.5)",
+        width: "100%",
+        boxSizing: "border-box",
       }}
     >
       {/* Header Row */}
@@ -99,14 +101,16 @@ export function SendChannelCard({
         onClick={handleHeaderClick}
       >
         {/* Drag Handle */}
-        <span
-          data-drag-handle
-          style={styles.dragHandle}
-          {...(dragHandleProps?.listeners || {})}
-          {...(dragHandleProps?.attributes || {})}
-        >
-          ≡
-        </span>
+        {dragHandleProps && (
+          <span
+            data-drag-handle
+            style={styles.dragHandle}
+            {...(dragHandleProps?.listeners || {})}
+            {...(dragHandleProps?.attributes || {})}
+          >
+            ≡
+          </span>
+        )}
 
         {/* Channel Name + Account/Server Name */}
         <span style={{ ...styles.channelName, color: selected ? "#14b8a6" : "#e5e7eb" }}>
@@ -182,9 +186,17 @@ function SortableSendSubEntityRow({
     useSortable({ id })
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
+    // CRITICAL: Use CSS.Translate.toString() instead of CSS.Transform.toString()
+    // CSS.Transform includes scaleX/scaleY which causes variable-height items to
+    // stretch/compress during drag. CSS.Translate only applies translation (x, y),
+    // preserving exact dimensions. See dnd-kit issues #44, #117, #817, #1138.
+    transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
+    width: "100%",
+    boxSizing: "border-box",
+    // Margin moved from inner element to wrapper for consistent drag spacing
+    marginBottom: 2,
   }
 
   return (
@@ -207,8 +219,8 @@ function SortableSendSubEntityRow({
 const styles: Record<string, React.CSSProperties> = {
   card: {
     borderRadius: 10,
-    marginBottom: 8,
-    overflow: "hidden",
+    // marginBottom removed — handled by SortableSendChannelCard wrapper for consistent drag spacing
+    // overflow removed — was causing subpixel rendering issues during drag & drop
     transition: "border-color 150ms, background-color 150ms",
   },
   header: {
@@ -253,5 +265,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subEntitiesContainer: {
     padding: "4px 4px 8px",
+    width: "100%",
+    boxSizing: "border-box",
   },
 }

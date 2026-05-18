@@ -41,7 +41,7 @@ export function TemplateListItem({
       padding: "12px 16px",
       border: "1px solid #3a3f4a",
       borderRadius: 8,
-      marginBottom: 8,
+      // marginBottom removed — handled by SortableTemplateItem wrapper for consistent drag spacing
       backgroundColor: "rgba(37, 40, 48, 0.5)",
     },
     dragHandle: {
@@ -87,14 +87,16 @@ export function TemplateListItem({
   return (
     <div style={styles.container} data-id={template.id}>
       {/* Drag Handle */}
-      <span
-        data-drag-handle
-        style={styles.dragHandle}
-        {...(dragHandleProps?.listeners || {})}
-        {...(dragHandleProps?.attributes || {})}
-      >
-        ≡
-      </span>
+      {dragHandleProps && (
+        <span
+          data-drag-handle
+          style={styles.dragHandle}
+          {...(dragHandleProps?.listeners || {})}
+          {...(dragHandleProps?.attributes || {})}
+        >
+          ≡
+        </span>
+      )}
       <span style={styles.name}>{template.name}</span>
       <div style={{ display: "flex", gap: 2, alignItems: "center", flexShrink: 0 }}>
         <button

@@ -29,6 +29,10 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  restrictToVerticalAxis,
+  restrictToParentElement,
+} from "@dnd-kit/modifiers"
+import {
   MESSAGE_TYPES,
   type CaptureResponse,
   type SendScreenshotResponse,
@@ -47,6 +51,7 @@ import {
 import { CollapsibleSection } from "./components/CollapsibleSection"
 import { TemplateForm } from "./components/TemplateForm"
 import { SortableTemplateItem } from "./components/SortableTemplateItem"
+import { TemplateListItem } from "./components/TemplateListItem"
 import { TemplateTile } from "./components/TemplateTile"
 import {
   getChannels,
@@ -829,6 +834,7 @@ function CaptureView({
                 collisionDetection={closestCenter}
                 onDragStart={onChannelDragStart}
                 onDragEnd={onChannelDragEnd}
+                modifiers={[restrictToVerticalAxis, restrictToParentElement]}
               >
                 <SortableContext
                   items={channels.map((ch) => ch.id)}
@@ -853,6 +859,8 @@ function CaptureView({
                     )
                   })}
                 </SortableContext>
+
+
               </DndContext>
             </>
           )}
@@ -994,10 +1002,27 @@ function SortableSendChannelCard({
   const isOtherDragging = dragActiveId !== null && dragActiveId !== channel.id && !isDragging
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
+    // CRITICAL: Use CSS.Translate.toString() instead of CSS.Transform.toString()
+    // CSS.Transform includes scaleX/scaleY which causes variable-height items to
+    // stretch/compress during drag. CSS.Translate only applies translation (x, y),
+    // preserving exact dimensions. See dnd-kit issues #44, #117, #817, #1138.
+    transform: CSS.Translate.toString(transform),
     transition,
     opacity: isOtherDragging ? 0.5 : 1,
     zIndex: isDragging ? 1000 : undefined,
+    width: "100%",
+    boxSizing: "border-box",
+    // Border always present (1px) — only color changes. No size change.
+    border: "1px solid",
+    borderColor: isDragging ? "#14b8a6" : "transparent",
+    // Background highlight when dragging
+    backgroundColor: isDragging ? "rgba(13, 148, 136, 0.08)" : "transparent",
+    // Elevation shadow — no layout impact
+    boxShadow: isDragging ? "0 8px 24px rgba(0, 0, 0, 0.4)" : undefined,
+    cursor: isDragging ? "grabbing" : undefined,
+    borderRadius: 10,
+    // Margin moved from inner element to wrapper for consistent drag spacing
+    marginBottom: 8,
   }
 
   return (
@@ -1090,8 +1115,8 @@ function SettingsView({
   // Settings UI collapse state (Phase 33) + section states
   const [settingsUIState, setSettingsUIState] = useState<SettingsUIState>({ collapsedCards: {}, sections: {} })
 
-  // Drag & Drop state
-  const [dragActiveId, setDragActiveId] = useState<number | null>(null)
+  // Drag & Drop state (templates) — dnd-kit uses string IDs internally
+  const [dragActiveId, setDragActiveId] = useState<string | null>(null)
 
   // Keyboard shortcut info (Phase 10.3)
   const [shortcutInfo, setShortcutInfo] = useState<{
@@ -1190,7 +1215,7 @@ function SettingsView({
   // Drag & Drop handlers (templates — unchanged)
   // -----------------------------------------------------------------------
 
-  const handleDragStart = useCallback((event: { active: { id: number } }) => {
+  const handleDragStart = useCallback((event: { active: { id: string } }) => {
     setDragActiveId(event.active.id)
   }, [])
 
@@ -1204,8 +1229,8 @@ function SettingsView({
         return
       }
 
-      const oldIndex = templates.findIndex((t) => t.id === active.id)
-      const newIndex = templates.findIndex((t) => t.id === over.id)
+      const oldIndex = templates.findIndex((t) => t.id.toString() === active.id)
+      const newIndex = templates.findIndex((t) => t.id.toString() === over.id)
 
       if (oldIndex === -1 || newIndex === -1) {
         return
@@ -1970,9 +1995,10 @@ function SettingsView({
               collisionDetection={closestCenter}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
+              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
             >
               <SortableContext
-                items={templates.map((t) => t.id)}
+                items={templates.map((t) => t.id.toString())}
                 strategy={verticalListSortingStrategy}
               >
                 {templates.map((template) => (
@@ -1985,6 +2011,8 @@ function SettingsView({
                   />
                 ))}
               </SortableContext>
+
+
             </DndContext>
             <button
               style={s.addButton}

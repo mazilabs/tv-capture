@@ -73,7 +73,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 4,
     cursor: "pointer",
     transition: "background-color 150ms",
-    marginBottom: 2,
+    // marginBottom removed — handled by SortableSendSubEntityRow wrapper for consistent drag spacing
   },
   dragHandle: {
     cursor: "grab",
