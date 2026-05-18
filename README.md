@@ -1,14 +1,18 @@
 # TV Capture
 
-Chrome extension that captures trading setups from TradingView and sends them to Telegram.
+Chrome extension that captures trading setups from TradingView and sends them to Telegram and Discord.
 
 ## Features
 
 - 📸 Screenshot capture from TradingView (Alt+S shortcut)
 - ✂️ Auto-crop to chart area
-- 📨 Send to Telegram with one click
+- 📨 Send to Telegram and Discord with one click
+- 🔗 Multi-channel send — deliver to multiple channels simultaneously
 - 📝 Caption templates for consistent documentation
-- ⚙️ Configurable Telegram bot settings
+- 🏷️ Telegram Topics and Discord Threads support
+- ⚙️ Configurable channel settings (Telegram bot + Discord webhooks)
+- ⌨️ Customizable keyboard shortcuts
+- 🎨 Dark glassmorphism UI
 
 ## Installation
 
@@ -16,7 +20,7 @@ Install from Chrome Web Store (Unlisted):
 
 1. Get the direct link from the developer
 2. Click "Add to Chrome"
-3. Configure your Telegram Bot Token and Chat ID in Settings
+3. Configure your channels in Settings (Telegram Bot Token + Chat ID, or Discord Webhook URL)
 
 ## Development
 
@@ -39,6 +43,8 @@ cd build/chrome-mv3-prod && zip -r ../../tv-capture.zip .
 - [Plasmo](https://plasmo.com/) - Chrome Extension Framework (MV3)
 - React + TypeScript
 - Chrome Extensions API
+- Discord Webhooks API
+- Telegram Bot API
 
 ## Distribution
 
@@ -54,5 +60,5 @@ Private - For internal use only.
 
 ---
 
-*Version: 0.1.0*
-*Last updated: 2026-04-20*
+*Version: 0.2.0*
+*Last updated: 2026-05-18*

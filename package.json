@@ -3,7 +3,7 @@
   "displayName": "TV Capture",
   "version": "0.2.0",
   "private": true,
-  "description": "Chrome extension that captures trading setups from TradingView and sends them to Telegram with one click.",
+  "description": "Chrome extension that captures trading setups from TradingView and sends them to Telegram and Discord with one click.",
   "scripts": {
     "dev": "plasmo dev",
     "prebuild": "rm -rf .plasmo build",
