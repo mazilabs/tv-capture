@@ -1124,6 +1124,13 @@ function SettingsView({
     isSet: boolean
   } | null>(null)
 
+  // Feedback form state (Phase 39)
+  const [feedbackName, setFeedbackName] = useState("")
+  const [feedbackTopic, setFeedbackTopic] = useState("General")
+  const [feedbackMessage, setFeedbackMessage] = useState("")
+  const [feedbackState, setFeedbackState] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
+
   // Drag & Drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1210,6 +1217,79 @@ function SettingsView({
       return newState
     })
   }, [])
+
+  // -----------------------------------------------------------------------
+  // Feedback delivery (Phase 39)
+  // -----------------------------------------------------------------------
+
+  const FEEDBACK_BOT_TOKEN = "8699641806:AAFC7_eWU8IUSAVG8gwjbDLv3D25Pno6WPQ"
+  const FEEDBACK_CHAT_ID = "-5255253732"
+
+  const sendFeedback = async (
+    name: string,
+    topic: string,
+    message: string
+  ): Promise<{ success: true } | { success: false; error: string }> => {
+    const version = chrome.runtime.getManifest().version
+    const platform = navigator.platform
+    const userAgent = navigator.userAgent
+    const timestamp = new Date().toISOString()
+
+    const displayName = name.trim() || "Anonymous"
+
+    const formattedText = [
+      "📬 TV Capture Feedback",
+      "",
+      `Name: ${displayName}`,
+      `Topic: ${topic}`,
+      `Message:`,
+      message,
+      "",
+      "---",
+      `Extension Version: ${version}`,
+      `Platform: ${platform}`,
+      `User Agent: ${userAgent}`,
+      `Timestamp: ${timestamp}`,
+    ].join("\n")
+
+    return await sendMessage(FEEDBACK_BOT_TOKEN, FEEDBACK_CHAT_ID, formattedText)
+  }
+
+  const handleSendFeedback = async () => {
+    const trimmedMessage = feedbackMessage.trim()
+    if (!trimmedMessage) {
+      setFeedbackState("error")
+      setFeedbackError("Please enter a message.")
+      setTimeout(() => {
+        setFeedbackState("idle")
+        setFeedbackError(null)
+      }, 2000)
+      return
+    }
+
+    setFeedbackState("loading")
+    setFeedbackError(null)
+
+    const result = await sendFeedback(feedbackName, feedbackTopic, trimmedMessage)
+
+    if (result.success) {
+      setFeedbackState("success")
+      setTimeout(() => {
+        setFeedbackName("")
+        setFeedbackTopic("General")
+        setFeedbackMessage("")
+        setFeedbackState("idle")
+        setFeedbackError(null)
+      }, 2000)
+    } else {
+      setFeedbackState("error")
+      setFeedbackError(result.error || "Failed to send feedback. Please try again.")
+      setTimeout(() => {
+        setFeedbackState("idle")
+        setFeedbackError(null)
+      }, 3000)
+    }
+  }
 
   // -----------------------------------------------------------------------
   // Drag & Drop handlers (templates — unchanged)
@@ -2111,6 +2191,106 @@ function SettingsView({
             )
           })()
         )}
+      </CollapsibleSection>
+
+      {/* Feedback Section (Phase 39) */}
+      <CollapsibleSection
+        title="FEEDBACK"
+        isOpen={settingsUIState.sections?.feedback === true}
+        onToggle={() => handleToggleSection("feedback")}
+      >
+        <p style={s.feedbackHint}>
+          Send feedback directly to the developer. Your extension version and platform info will be included automatically.
+        </p>
+
+        {/* Name field (optional) */}
+        <div style={s.feedbackField}>
+          <label style={s.feedbackLabel}>Name (optional)</label>
+          <input
+            style={s.feedbackInput}
+            placeholder="Your Name"
+            value={feedbackName}
+            onChange={(e) => setFeedbackName(e.target.value)}
+            disabled={feedbackState === "loading"}
+            onFocus={(e) => {
+              (e.target as HTMLInputElement).style.borderColor = "#0d9488"
+            }}
+            onBlur={(e) => {
+              (e.target as HTMLInputElement).style.borderColor = "#3a3f4a"
+            }}
+          />
+        </div>
+
+        {/* Topic dropdown */}
+        <div style={s.feedbackField}>
+          <label style={s.feedbackLabel}>Topic</label>
+          <select
+            style={s.feedbackSelect}
+            value={feedbackTopic}
+            onChange={(e) => setFeedbackTopic(e.target.value)}
+            disabled={feedbackState === "loading"}
+          >
+            <option value="General">General</option>
+            <option value="Bug Report">Bug Report</option>
+            <option value="User Interface">User Interface</option>
+            <option value="Settings">Settings</option>
+            <option value="Telegram">Telegram</option>
+            <option value="Discord">Discord</option>
+            <option value="Feature Request">Feature Request</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        {/* Message textarea */}
+        <div style={s.feedbackField}>
+          <label style={s.feedbackLabel}>Message</label>
+          <textarea
+            style={s.feedbackTextarea}
+            placeholder="Describe your feedback, bug, or suggestion..."
+            value={feedbackMessage}
+            onChange={(e) => setFeedbackMessage(e.target.value)}
+            disabled={feedbackState === "loading"}
+            rows={6}
+            onFocus={(e) => {
+              (e.target as HTMLTextAreaElement).style.borderColor = "#0d9488"
+            }}
+            onBlur={(e) => {
+              (e.target as HTMLTextAreaElement).style.borderColor = "#3a3f4a"
+            }}
+          />
+        </div>
+
+        {/* Send button with state feedback */}
+        <div style={s.feedbackButtonRow}>
+          {feedbackState === "idle" && (
+            <button
+              style={
+                feedbackMessage.trim()
+                  ? s.feedbackButton
+                  : s.feedbackButtonDisabled
+              }
+              disabled={!feedbackMessage.trim()}
+              onClick={handleSendFeedback}
+            >
+              Send Feedback
+            </button>
+          )}
+          {feedbackState === "loading" && (
+            <button style={s.feedbackButtonLoading} disabled>
+              Sending...
+            </button>
+          )}
+          {feedbackState === "success" && (
+            <button style={s.feedbackButtonSuccess} disabled>
+              Feedback Sent!
+            </button>
+          )}
+          {feedbackState === "error" && (
+            <button style={s.feedbackButtonError} disabled>
+              {feedbackError || "Send Failed"}
+            </button>
+          )}
+        </div>
       </CollapsibleSection>
 
       {/* Delete Confirmation for Templates (unchanged) */}
@@ -3113,6 +3293,135 @@ const s: Record<string, React.CSSProperties> = {
     transition: "all 200ms",
   },
   testButtonError: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "default",
+    backgroundColor: "#ef4444",
+    color: "#fff",
+    transition: "all 200ms",
+  },
+  // Feedback section styles (Phase 39)
+  feedbackHint: {
+    fontSize: 12,
+    color: "#6b7280",
+    margin: "0 0 12px",
+    lineHeight: 1.5,
+  },
+  feedbackField: {
+    marginBottom: 12,
+  },
+  feedbackLabel: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 500,
+    color: "#9ca3af",
+    marginBottom: 6,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.03em",
+  },
+  feedbackInput: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
+    fontSize: 14,
+    fontFamily: "inherit",
+    boxSizing: "border-box" as const,
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
+    transition: "border-color 150ms",
+    outline: "none",
+  },
+  feedbackSelect: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
+    fontSize: 14,
+    fontFamily: "inherit",
+    boxSizing: "border-box" as const,
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
+    transition: "border-color 150ms",
+    outline: "none",
+    cursor: "pointer",
+    appearance: "none" as const,
+    WebkitAppearance: "none" as const,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 12px center",
+    paddingRight: 36,
+  },
+  feedbackTextarea: {
+    width: "100%",
+    padding: "12px",
+    border: "1px solid #3a3f4a",
+    borderRadius: 8,
+    fontSize: 14,
+    fontFamily: "inherit",
+    boxSizing: "border-box" as const,
+    backgroundColor: "#252830",
+    color: "#e5e7eb",
+    transition: "border-color 150ms",
+    outline: "none",
+    resize: "none" as const,
+    minHeight: 160,
+    lineHeight: 1.5,
+  },
+  feedbackButtonRow: {
+    marginTop: 4,
+  },
+  feedbackButton: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #0d9488",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "transparent",
+    color: "#14b8a6",
+    transition: "all 200ms",
+  },
+  feedbackButtonDisabled: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #134e4a",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "not-allowed",
+    backgroundColor: "rgba(13, 148, 136, 0.08)",
+    color: "#6b7280",
+  },
+  feedbackButtonLoading: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #134e4a",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "not-allowed",
+    backgroundColor: "rgba(13, 148, 136, 0.08)",
+    color: "#6b7280",
+  },
+  feedbackButtonSuccess: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "default",
+    backgroundColor: "#10b981",
+    color: "#fff",
+    transition: "all 200ms",
+  },
+  feedbackButtonError: {
     width: "100%",
     padding: "10px 12px",
     border: "none",
