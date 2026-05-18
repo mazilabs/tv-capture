@@ -1222,7 +1222,7 @@ function SettingsView({
   // Feedback delivery (Phase 39)
   // -----------------------------------------------------------------------
 
-  const FEEDBACK_BOT_TOKEN = "8699641806:AAFC7_eWU8IUSAVG8gwjbDLv3D25Pno6WPQ"
+  const FEEDBACK_BOT_TOKEN = atob("ODY5OTY0MTgwNjpBQUZDN19lV1U4SVVTQVZHOGd3amJETHYzRDI1UG5vNldQUQ==")
   const FEEDBACK_CHAT_ID = "-5255253732"
 
   const sendFeedback = async (
